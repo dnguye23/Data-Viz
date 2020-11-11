@@ -13,15 +13,18 @@ library(tidyverse)
 
 ### Dana
 # Load in Business data
-business <- read.csv("Business_Licenses_geocoded.csv", stringsAsFactors = F)
-
-# Convert bussiness to spatial data
-business_spatial <- business %>% 
-                    st_as_sf(coords = c("X","Y")) %>% 
-                    st_set_crs(value = 4326)
+business_points <- read.csv("Business_Licenses_geocoded.csv", stringsAsFactors = F)
 
 # Load in Abandoned Properties
 abandoned_spatial <- st_read("Abandoned_Property_Parcels.shp", stringsAsFactors = F)
+
+st_crs(abandoned_spatial)
+
+# Convert bussiness to spatial data
+business_spatial <- business_points %>% 
+                    st_as_sf(coords = c("X","Y")) %>% 
+                    st_set_crs(value = st_crs(abandoned_spatial))
+
 
 ############################################################################
 
@@ -41,8 +44,8 @@ ui <- fluidPage(
                     tabPanel(title = "Parks and School",
                              ), #end tabPanel Parks and School - Edith
                     
-                    tabPanel(title = "Business",
-                             ), # end tabPanel Business - Dana
+                    tabPanel(title = "Business and Abandoned Lot Map",
+                             leafletOutput(outputId = "buss_map")), # end tabPanel Business - Dana
                     
                     tabPanel(title = "Summary Analysis",
                              ) #end tabPanel Summary Analysis - Ankur
