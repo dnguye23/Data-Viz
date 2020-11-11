@@ -2,13 +2,30 @@ library(shiny)
 library(leaflet)
 library(rgdal)
 library(sf)
+library(ggmap)
 library(magrittr)
 library(tidyverse)
 
+### Edith
+
+
+############################################################################
+
+### Dana
 # Load in Business data
 business <- read.csv("Business_Licenses_geocoded.csv", stringsAsFactors = F)
 
+# Convert bussiness to spatial data
+business_spatial <- business %>% 
+                    st_as_sf(coords = c("X","Y")) %>% 
+                    st_set_crs(value = 4326)
 
+# Load in Abandoned Properties
+abandoned_spatial <- st_read("Abandoned_Property_Parcels.shp", stringsAsFactors = F)
+
+############################################################################
+
+### Ankur
 
 
 
