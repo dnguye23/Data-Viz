@@ -5,6 +5,13 @@ library(sf)
 library(magrittr)
 library(tidyverse)
 
+# Load in Business data
+business <- read.csv("Business_Licenses_geocoded.csv", stringsAsFactors = F)
+
+
+
+
+
 # Define UI for application that draws a histogram
 ui <- fluidPage(
 
