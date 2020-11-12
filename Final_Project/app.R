@@ -45,6 +45,7 @@ abandoned_spatial$popup <- paste('<b>', abandoned_spatial$Property_S, "</b><br>"
 
 # Create color-palette
 bus_pal <- colorFactor(palette = "BrBG", alph = T, domain = business_spatial$Classifi_1)
+
 ############################################################################
 
 ### Ankur
