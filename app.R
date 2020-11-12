@@ -8,7 +8,24 @@ library(tidyverse)
 
 ### Edith
 
-school_data <- 
+# Load school data
+school_data <- st_read("School_Boundaries.shp")
+
+# review school data
+glimpse(school_data)
+
+# Load park data
+park_data <- read_csv("Parks_Locations_and_Features.csv")
+
+# review park data
+glimpse(park_data)
+
+# Load census data
+census_data <- st_read("2010_CensusData.shp")
+
+# review park data
+glimpse(census_data)
+
 
 ############################################################################
 
