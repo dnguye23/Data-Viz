@@ -84,47 +84,49 @@ server <- function(input, output) {
     
     ## Dana
     output$bus_map <- renderLeaflet({
-        leaflet() %>% 
+        leaflet(business_points) %>% 
+            
             addTiles() %>% 
             
+            fitBounds(~min(X), ~min(Y), ~max(X), ~max(Y)) %>% 
+          
             # User CartoDB.Position tile for easy view
-            addProviderTiles((providers$CartoDB.Positron)) %>% 
-            
+            addProviderTiles((providers$CartoDB.Positron))  %>% 
+    
             # Add markers for business
             addCircleMarkers(data = business_spatial,
-                             popup = ~popup,
-                             color = ~bus_pal(Classifi_1),
-                             stroke = F,
-                             fillOpacity = 0.8,
-                             radius=3,
-                             group = "Business") %>% 
+                              popup = ~popup,
+                              stroke = F,
+                              fillOpacity = 0.8,
+                              radius=3,
+                              group = "Business") %>%
             
             # Add legend for business
             addLegend(data = business_spatial,
-                      values = "Business",
-                      opacity = 1,
-                      group = "Business") %>%
-
+                       values = "Business",
+                       opacity = 1,
+                       group = "Business") %>%
+            
             # Add outline for abandoned properties
             addPolygons(data = abandoned_spatial,
-                        popup = ~popup,
-                        opacity = 0.5,
-                        fillOpacity = 0.5,
-                        group = "Abandonned Property") # %>% 
+                         popup = ~popup,
+                         opacity = 0.5,
+                         fillOpacity = 0.5,
+                         group = "Abandoned Property") # %>%
             
             # Add legend for abandoned properties
-            # addLegend(data = abandoned_spatial,
-            #           values = "Abandoned Property",
-            #           opacity = 0.5,
-            #           group = "Abandoned Property") %>% 
-            
+            addLegend(data = abandoned_spatial,
+                       values = "Abandoned Property",
+                       opacity = 0.5,
+                       group = "Abandoned Property") %>%
+
             # Add layer control
-            # addLayersControl(overlayGroups = c("Business", "Abandoned Property"),
-            #                  options = layersControlOptions(collapsed = F))
-            # 
+            addLayersControl(overlayGroups = c("Business", "Abandoned Property"),
+                              options = layersControlOptions(collapsed = F))
+            
+    
+    
     }) #end buss_map
-    
-    
     ######################################################################
     ## Ankur
 
