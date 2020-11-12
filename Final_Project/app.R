@@ -37,15 +37,15 @@ business_points <- read.csv("Business_Licenses_geocoded.csv", stringsAsFactors =
 
 # Load in Abandoned Properties
 abandoned_spatial <- st_read("Abandoned_Property_Parcels.shp")
-
-st_crs(abandoned_spatial)
+# Remove geometry var
+abandoned_nogeo <- st_set_geometry(abandoned_spatial, NULL)
 
 # Convert bussiness to spatial data
 business_spatial <- business_points %>% 
                     st_as_sf(coords = c("X","Y")) %>% 
                     st_set_crs(value = st_crs(abandoned_spatial))
 
-# Clean up zip_code
+# Clean up zip_code. Add "-" in between zip code
 business_spatial$zip_code <- as.character(business_spatial$Zip_Code) %>%
     gsub('^([0-9]{5})([0-9]+)$', '\\1-\\2', .)
 
@@ -79,21 +79,37 @@ ui <- fluidPage(
     # Application title
     titlePanel("South Bend Information"),
     
-    # Main panel
-    mainPanel(
-        tabsetPanel(type = "tabs",
-                    tabPanel(title = "Parks and School"
-                             ), #end tabPanel Parks and School - Edith
-                    
-                    tabPanel(title = "Business and Abandoned Lot Map",
-                             leafletOutput(outputId = "bus_map")), # end tabPanel Business - Dana
-                    
-                    tabPanel(title = "Summary Analysis"
-                            ) #end tabPanel Summary Analysis - Ankur
-                    
-        ) #tabsetPanel
-           
-        ) #mainPanel
+    # Sidebar with for input 
+    sidebarLayout(
+        sidebarPanel(
+            # TextInput for Zip Code 
+            textInput(inputId = "zipcode",
+                      label = "Zip Code",
+                      value = '46601')
+        ),
+        
+        # Main panel
+        mainPanel(
+            
+            # Create tabs
+            tabsetPanel(type = "tabs",
+                        
+                        tabPanel(title = "Parks and School"
+                        ), #end tabPanel Parks and School - Edith
+                        
+                        tabPanel(title = "Business and Abandoned Lot Map",
+                                 leafletOutput(outputId = "bus_map")
+                        ), # end tabPanel Business - Dana
+                        
+                        tabPanel(title = "Summary Analysis"
+                        ) #end tabPanel Summary Analysis - Ankur
+                        
+            ) # end tabsetPanel
+            
+        ) # end mainPanel
+        
+    ) # end Sidebar 
+    
     
 )# end fluidPage
 
@@ -105,6 +121,16 @@ server <- function(input, output) {
     #######################################################################
     
     ## Dana
+    
+    # Subset data based on zipcode input
+    business_zip <- reactive({
+        business_spatial %>% filter(zip_code %in% input$zipcode)
+    })
+    
+    abandoned_zip <- reactive({
+        abandoned_spatial %>% filter(zip_code %in% input$zipcode)
+    })
+    
     output$bus_map <- renderLeaflet({
         leaflet() %>% 
             
@@ -114,7 +140,7 @@ server <- function(input, output) {
             addProviderTiles(providers$CartoDB.Positron)  %>% 
     
             # Add markers for business
-            addCircleMarkers(data = business_spatial,
+            addCircleMarkers(data = business_zip(),
                               popup = ~popup,
                               stroke = F,
                               fillOpacity = 0.8,
@@ -122,14 +148,14 @@ server <- function(input, output) {
                               group = "Business") %>%
             
             # Add legend for business
-            addLegend(data = business_spatial,
+            addLegend(data = business_zip(),
                        labels = "Businesess",
                        colors = 'blue',
                        opacity = 1,
                        group = "Business") %>%
             
             # Add outline for abandoned properties
-            addPolygons(data = abandoned_spatial,
+            addPolygons(data = abandoned_zip(),
                          popup = ~popup,
                         color = 'red',
                          opacity = 0.5,
@@ -137,7 +163,7 @@ server <- function(input, output) {
                          group = "Abandoned Property") %>%
             
             # Add legend for abandoned properties
-            addLegend(data = abandoned_spatial,
+            addLegend(data = abandoned_zip(),
                        labels = "Abandoned Properties",
                        colors = 'red',
                        opacity = 0.5,
@@ -145,13 +171,8 @@ server <- function(input, output) {
 
             # Add layer control
             addLayersControl(overlayGroups = c("Business", "Abandoned Property"),
-                              options = layersControlOptions(collapsed = F)) %>% 
+                              options = layersControlOptions(collapsed = F)) 
             
-            # Fit Bound
-            fitBounds(lng1 = min_lng, lat1 = min_lat, lng2 = max_lng, lat2 = max_lat)
-            
-    
-    
     }) #end buss_map
     
     
