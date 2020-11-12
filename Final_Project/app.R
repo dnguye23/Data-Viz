@@ -18,7 +18,7 @@ business_points <- read.csv("Business_Licenses_geocoded.csv", stringsAsFactors =
     filter(State == "IN")
 
 # Load in Abandoned Properties
-abandoned_spatial <- st_read("Abandoned_Property_Parcels.shp", stringsAsFactors = F)
+abandoned_spatial <- st_read("Abandoned_Property_Parcels.shp")
 
 st_crs(abandoned_spatial)
 
@@ -43,8 +43,11 @@ business_spatial$popup <- paste("<b>", business_spatial$Business_N, "</b><br>",
 abandoned_spatial$popup <- paste('<b>', abandoned_spatial$Property_S, "</b><br>",
                                  "Structure Type: ", abandoned_spatial$Structures, sep="")
 
-# Create color-palette
-bus_pal <- colorFactor(palette = "BrBG", alph = T, domain = business_spatial$Classifi_1)
+# Min/Max latitudes and longitude
+min_lng = min(business_points$X)
+max_lng = max(business_points$X)
+min_lat = min(business_points$Y)
+max_lat = max(business_points$Y)
 
 ############################################################################
 
@@ -85,14 +88,12 @@ server <- function(input, output) {
     
     ## Dana
     output$bus_map <- renderLeaflet({
-        leaflet(business_points) %>% 
+        leaflet() %>% 
             
             addTiles() %>% 
-            
-            fitBounds(~min(X), ~min(Y), ~max(X), ~max(Y)) %>% 
           
             # User CartoDB.Position tile for easy view
-            addProviderTiles((providers$CartoDB.Positron))  %>% 
+            addProviderTiles(providers$CartoDB.Positron)  %>% 
     
             # Add markers for business
             addCircleMarkers(data = business_spatial,
@@ -104,30 +105,38 @@ server <- function(input, output) {
             
             # Add legend for business
             addLegend(data = business_spatial,
-                       values = "Business",
+                       labels = "Businesess",
+                       colors = 'blue',
                        opacity = 1,
                        group = "Business") %>%
             
             # Add outline for abandoned properties
             addPolygons(data = abandoned_spatial,
                          popup = ~popup,
+                        color = 'red',
                          opacity = 0.5,
                          fillOpacity = 0.5,
-                         group = "Abandoned Property") # %>%
+                         group = "Abandoned Property") %>%
             
             # Add legend for abandoned properties
             addLegend(data = abandoned_spatial,
-                       values = "Abandoned Property",
+                       labels = "Abandoned Properties",
+                       colors = 'red',
                        opacity = 0.5,
                        group = "Abandoned Property") %>%
 
             # Add layer control
             addLayersControl(overlayGroups = c("Business", "Abandoned Property"),
-                              options = layersControlOptions(collapsed = F))
+                              options = layersControlOptions(collapsed = F)) %>% 
+            
+            # Fit Bound
+            fitBounds(lng1 = min_lng, lat1 = min_lat, lng2 = max_lng, lat2 = max_lat)
             
     
     
     }) #end buss_map
+    
+    
     ######################################################################
     ## Ankur
 
