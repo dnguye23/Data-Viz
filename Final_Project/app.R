@@ -6,6 +6,8 @@ library(ggmap)
 library(magrittr)
 library(tidyverse)
 
+
+### Testing the git checkout process - Ankur.
 ### Edith
 
 # Load school data
@@ -21,10 +23,10 @@ park_data <- read_csv("Parks_Locations_and_Features.csv")
 glimpse(park_data)
 
 # Load census data
-census_data <- st_read("2010_CensusData.shp")
+#census_data <- st_read("2010_CensusData.shp")
 
 # review park data
-glimpse(census_data)
+#glimpse(census_data)
 
 
 ############################################################################
