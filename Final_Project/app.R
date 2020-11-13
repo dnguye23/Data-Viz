@@ -12,15 +12,16 @@ library(tidyverse)
 ############################################################################
 
 ### Dana
+# Load in Abandoned Properties
+abandoned_spatial <- st_read("Abandoned_Property_Parcels.shp")
+
+# Remove geometry var
+abandoned_nogeo <- st_set_geometry(abandoned_spatial, NULL)
+
 # Load in Business data
 business_points <- read.csv("Business_Licenses_geocoded.csv", stringsAsFactors = F) %>% 
     # Filter out businesses that are physically in South Bend IN only
     filter(State == "IN")
-
-# Load in Abandoned Properties
-abandoned_spatial <- st_read("Abandoned_Property_Parcels.shp")
-# Remove geometry var
-abandoned_nogeo <- st_set_geometry(abandoned_spatial, NULL)
 
 # Convert bussiness to spatial data
 business_spatial <- business_points %>% 
@@ -29,11 +30,11 @@ business_spatial <- business_points %>%
 
 # Clean up zip_code. Add "-" in between zip code
 business_spatial$zip_code <- as.character(business_spatial$Zip_Code) %>%
-    gsub('^([0-9]{5})([0-9]+)$', '\\1-\\2', .)
+                             gsub('^([0-9]{5})([0-9]+)$', '\\1-\\2', .)
 
 
 abandoned_spatial$zip_code <- as.character(abandoned_spatial$Zip_Code) %>% 
-    gsub('^([0-9]{5})([0-9]+)$', '\\1-\\2', .)
+                              gsub('^([0-9]{5})([0-9]+)$', '\\1-\\2', .)
 
 
 # Create pop-up
@@ -155,7 +156,7 @@ server <- function(input, output) {
             addLayersControl(overlayGroups = c("Business", "Abandoned Property"),
                               options = layersControlOptions(collapsed = F)) 
             
-    }) #end buss_map
+    }) #end bus_map
     
     
     ######################################################################
