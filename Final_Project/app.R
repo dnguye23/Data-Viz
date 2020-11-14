@@ -85,16 +85,18 @@ pop_age_tidy <- gather(pop_age_by_zip,
                        value="population",
                        -zipcode)
 # Test graph
-fm_filter = pop_fm_tidy %>% filter(zipcode == 46365) %>% 
-    mutate(prop = round(population/sum(.$population)*100,2))
+fm_filter <-  pop_fm_tidy %>% filter(zipcode == 46365) %>% 
+    mutate(prop = round(population/sum(.$population)*100,2)) 
+    
+fm_filter$ypos <- c(80,20) 
     
     
-    ggplot(., aes(x="", y = population , fill=gender)) + 
+    ggplot(fm_filter, aes(x="", y = prop , fill=gender)) + 
     geom_bar(stat="identity", width = 1, color="white") +
     coord_polar("y", start=0) +
     theme_void() +
     scale_fill_brewer(palette = "Pastel2") +
-    geom_text(aes(y=ypos, label=gender), color="black", size = 6)
+    geom_text(aes(y = ypos,label=prop), color="navy", size = 6)
     
 
 # Load in Abandoned Properties
@@ -115,11 +117,11 @@ business_spatial <- business_points %>%
 
 # Clean up zip_code. Add "-" in between zip code
 business_spatial$zip_code <- as.character(business_spatial$Zip_Code) %>%
-  gsub('^([0-9]{5})([0-9]+)$', '\\1-\\2', .)
+  gsub('^([0-9]{5})([0-9]+)$', '\\1', .) %>% as.integer(.)
 
 
 abandoned_spatial$zip_code <- as.character(abandoned_spatial$Zip_Code) %>% 
-  gsub('^([0-9]{5})([0-9]+)$', '\\1-\\2', .)
+  gsub('^([0-9]{5})([0-9]+)$', '\\1', .) %>% as.integer(.)
 
 
 # Create pop-up
@@ -129,11 +131,7 @@ business_spatial$popup <- paste("<b>", business_spatial$Business_N, "</b><br>",
 abandoned_spatial$popup <- paste('<b>', abandoned_spatial$Property_S, "</b><br>",
                                  "Structure Type: ", abandoned_spatial$Structures, sep="")
 
-# Min/Max latitudes and longitude
-min_lng = min(business_points$X)
-max_lng = max(business_points$X)
-min_lat = min(business_points$Y)
-max_lat = max(business_points$Y)
+
 
 ############################################################################
 
