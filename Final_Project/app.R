@@ -26,7 +26,6 @@ census_data <- st_read("2010_CensusData.shp")
 # review park data
 glimpse(census_data)
 
-
 ############################################################################
 
 ### Dana
