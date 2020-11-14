@@ -38,6 +38,59 @@ glimpse(census_data)
 ############################################################################
 
 ### Dana
+# Subset census data for age and gender only 
+census_age_fm <- census_data %>% 
+    select(SE_T003_01, SE_T003_02, starts_with("SE_T008"), -SE_T008_00, geometry)
+
+# Joining census data and zip_code together
+google.crs <- 3857
+
+# Transform crs 
+zip_code_google <- zip_code %>% st_transform(crs = google.crs)
+
+st_crs(zip_code_google)
+
+census_data_google <- census_age_fm %>% st_transform((crs=google.crs))
+
+st_crs(census_data_google)
+
+# Join zip_codes onto census_age_fm
+ov <- st_join(x = census_data_google, y = zip_code_google %>% select(ZCTA5))
+
+# Total age range and gender population by zip-code
+pop_by_zip <- ov %>% st_set_geometry(NULL) %>% group_by(ZCTA5) %>% 
+    summarise(across(.cols = starts_with("SE"), .fns = sum))
+
+colnames(pop_by_zip) <- c("zipcode", "male", "female", "under_5", "5-9",
+                          "10-14","15-17", "18-24", "25-34", "35-44","45-54",
+                          "55-64", "65-74", "75-84", "over_84")
+              
+pop_fm_by_zip <- pop_by_zip %>% select(zipcode, male, female)
+pop_age_by_zip <- pop_by_zip %>% select(-male, -female)
+
+# Tidy pop data
+pop_fm_tidy <- gather(pop_fm_by_zip, 
+                   key = "gender", 
+                   value = "population",
+                   -zipcode)
+
+pop_age_tidy <- gather(pop_age_by_zip,
+                       key = "age_range",
+                       value="population",
+                       -zipcode)
+# Test graph
+fm_filter = pop_fm_tidy %>% filter(zipcode == 46365) %>% 
+    mutate(prop = round(population/sum(.$population)*100,2))
+    
+    
+    ggplot(., aes(x="", y = population , fill=gender)) + 
+    geom_bar(stat="identity", width = 1, color="white") +
+    coord_polar("y", start=0) +
+    theme_void() +
+    scale_fill_brewer(palette = "Pastel2") +
+    geom_text(aes(y=ypos, label=gender), color="black", size = 6)
+    
+
 # Load in Abandoned Properties
 abandoned_spatial <- st_read("Abandoned_Property_Parcels.shp")
 
