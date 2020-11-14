@@ -1,12 +1,3 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
-
 library(shiny)
 library(shinydashboard)
 library(leaflet)
@@ -68,6 +59,61 @@ types <- c(unique(parks$Park_Type))
 #>>>>>>> 342992e17b018d97b1faa2d27653d606babb3f1a
 
 ### Dana
+# Subset census data for age and gender only 
+census_age_fm <- census_data %>% 
+    select(SE_T003_01, SE_T003_02, starts_with("SE_T008"), -SE_T008_00, geometry)
+
+# Joining census data and zip_code together
+google.crs <- 3857
+
+# Transform crs 
+zip_code_google <- zip_code %>% st_transform(crs = google.crs)
+
+st_crs(zip_code_google)
+
+census_data_google <- census_age_fm %>% st_transform((crs=google.crs))
+
+st_crs(census_data_google)
+
+# Join zip_codes onto census_age_fm
+ov <- st_join(x = census_data_google, y = zip_code_google %>% select(ZCTA5))
+
+# Total age range and gender population by zip-code
+pop_by_zip <- ov %>% st_set_geometry(NULL) %>% group_by(ZCTA5) %>% 
+    summarise(across(.cols = starts_with("SE"), .fns = sum))
+
+colnames(pop_by_zip) <- c("zipcode", "male", "female", "under_5", "5-9",
+                          "10-14","15-17", "18-24", "25-34", "35-44","45-54",
+                          "55-64", "65-74", "75-84", "over_84")
+              
+pop_fm_by_zip <- pop_by_zip %>% select(zipcode, male, female)
+pop_age_by_zip <- pop_by_zip %>% select(-male, -female)
+
+# Tidy pop data
+pop_fm_tidy <- gather(pop_fm_by_zip, 
+                   key = "gender", 
+                   value = "population",
+                   -zipcode)
+
+pop_age_tidy <- gather(pop_age_by_zip,
+                       key = "age_range",
+                       value="population",
+                       -zipcode)
+# Test graph
+fm_filter <-  pop_fm_tidy %>% filter(zipcode == 46365) %>% 
+    mutate(prop = round(population/sum(.$population)*100,2)) 
+    
+fm_filter$ypos <- c(80,20) 
+    
+    
+    ggplot(fm_filter, aes(x="", y = prop , fill=gender)) + 
+    geom_bar(stat="identity", width = 1, color="white") +
+    coord_polar("y", start=0) +
+    theme_void() +
+    scale_fill_brewer(palette = "Pastel2") +
+    geom_text(aes(y = ypos,label=prop), color="navy", size = 6)
+    
+
 # Load in Abandoned Properties
 abandoned_spatial <- st_read("Abandoned_Property_Parcels.shp")
 
@@ -86,11 +132,11 @@ business_spatial <- business_points %>%
 
 # Clean up zip_code. Add "-" in between zip code
 business_spatial$zip_code <- as.character(business_spatial$Zip_Code) %>%
-  gsub('^([0-9]{5})([0-9]+)$', '\\1-\\2', .)
+  gsub('^([0-9]{5})([0-9]+)$', '\\1', .) %>% as.integer(.)
 
 
 abandoned_spatial$zip_code <- as.character(abandoned_spatial$Zip_Code) %>% 
-  gsub('^([0-9]{5})([0-9]+)$', '\\1-\\2', .)
+  gsub('^([0-9]{5})([0-9]+)$', '\\1', .) %>% as.integer(.)
 
 
 # Create pop-up
@@ -100,11 +146,7 @@ business_spatial$popup <- paste("<b>", business_spatial$Business_N, "</b><br>",
 abandoned_spatial$popup <- paste('<b>', abandoned_spatial$Property_S, "</b><br>",
                                  "Structure Type: ", abandoned_spatial$Structures, sep="")
 
-# Min/Max latitudes and longitude
-min_lng = min(business_points$X)
-max_lng = max(business_points$X)
-min_lat = min(business_points$Y)
-max_lat = max(business_points$Y)
+
 
 ############################################################################
 
