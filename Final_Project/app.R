@@ -32,18 +32,11 @@ school_data$popup <- paste("<b>", school_data$School, "</b><br>",
 # Load park data
 park_data <- read_csv("Parks_Locations_and_Features.csv")
 
-# make into spatial data
-park_data <- park_data %>% 
-  st_as_sf(coords = c("Lon", "Lat")) %>%
-  st_set_crs(value = 4326)
 
 # create popup
 park_data$popup <- paste("<b>", park_data$Park_Name, "</b><br>",
                          "Type: ", park_data$Park_Type, "<br>",
                          "Address: ",park_data$Address, "<br>")
-
-# review park data
-# glimpse(park_data)
 
 # Load census data
 census_data <- st_read("2010_CensusData.shp")
@@ -145,12 +138,6 @@ age_level <- c("under_5", "5-9","10-14","15-17", "18-24", "25-34",
 
 pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
                 
-
-
-
-
-
-
 
 #### NEED TO CREATE A LIST OF UNIQUE ZIP CODES FOR SCHOOLS, PARKS, BUSINESS AND ABANDONED LOTS 
 
