@@ -471,7 +471,7 @@ server <- function(input, output) {
     
     output$age_warning <- renderText({
       
-      paste("There is no Age data for ", input$zipcode, ". Please select another zip code.")
+      paste("Age data not avaialable for Zip Code ", input$zipcode, ".")
       
     }) # end age_warning
     
@@ -485,7 +485,7 @@ server <- function(input, output) {
       else{
         textOutput("age_warning")
       }
-    })# end age_plot_or_waring
+    })# end age_plot_or_warning
     
     
     #### PIE GRAPH FOR GENDER DISTRIBUTION 
@@ -530,7 +530,7 @@ server <- function(input, output) {
     
     output$gender_warning <- renderText({
       
-      paste("There is no Gender data for ", input$zipcode, ". Please select another zip code.")
+      paste("Gender data no available for Zip Code ", input$zipcode, ".")
       
     })# end gender_warning
     
@@ -543,7 +543,7 @@ server <- function(input, output) {
       else{
         textOutput("gender_warning")
       }
-    })# end gender_plot_or_waring
+    })# end gender_plot_or_warning
     
   
   
