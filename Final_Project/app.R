@@ -12,6 +12,7 @@ library(ggmap)
 library(magrittr)
 library(tidyverse)
 library(stm)
+library(forcats)
 
 skin <- Sys.getenv("DASHBOARD_SKIN")
 skin <- tolower(skin)
@@ -22,115 +23,122 @@ if (skin == "")
 school_data <- st_read("School_Boundaries.shp")
 
 # review school data
-glimpse(school_data)
+# glimpse(school_data)
 
 # Load park data
 park_data <- read_csv("Parks_Locations_and_Features.csv")
 
 # review park data
-glimpse(park_data)
+# glimpse(park_data)
 
 # Load census data
 census_data <- st_read("2010_CensusData.shp")
 
 # review park data
-glimpse(census_data)
+# glimpse(census_data)
 
 # Load Zip code file
-#zip_code <- st_read("SJCZipCodes_clip.shp")
+zip_code <- st_read("SJCZipCodes_clip.shp")
 
 # Review zip code data
-#glimpse(zip_code)
+# glimpse(zip_code)
 
 
 ### Dana
-# Subset census data for age and gender only 
-census_age_fm <- census_data %>% 
-    select(SE_T003_01, SE_T003_02, starts_with("SE_T008"), -SE_T008_00, geometry)
-
-# Joining census data and zip_code together
-google.crs <- 3857
-
-# Transform crs 
-zip_code_google <- zip_code %>% st_transform(crs = google.crs)
-
-st_crs(zip_code_google)
-
-census_data_google <- census_age_fm %>% st_transform((crs=google.crs))
-
-st_crs(census_data_google)
-
-# Join zip_codes onto census_age_fm
-ov <- st_join(x = census_data_google, y = zip_code_google %>% select(ZCTA5))
-
-# Total age range and gender population by zip-code
-pop_by_zip <- ov %>% st_set_geometry(NULL) %>% group_by(ZCTA5) %>% 
-    summarise(across(.cols = starts_with("SE"), .fns = sum))
-
-colnames(pop_by_zip) <- c("zipcode", "male", "female", "under_5", "5-9",
-                          "10-14","15-17", "18-24", "25-34", "35-44","45-54",
-                          "55-64", "65-74", "75-84", "over_84")
-              
-pop_fm_by_zip <- pop_by_zip %>% select(zipcode, male, female)
-pop_age_by_zip <- pop_by_zip %>% select(-male, -female)
-
-# Tidy pop data
-pop_fm_tidy <- gather(pop_fm_by_zip, 
-                   key = "gender", 
-                   value = "population",
-                   -zipcode)
-
-pop_age_tidy <- gather(pop_age_by_zip,
-                       key = "age_range",
-                       value="population",
-                       -zipcode)
-# Test graph
-fm_filter <-  pop_fm_tidy %>% filter(zipcode == 46365) %>% 
-    mutate(prop = round(population/sum(.$population)*100,2)) 
-    
-fm_filter$ypos <- c(80,20) 
-    
-    
-    ggplot(fm_filter, aes(x="", y = prop , fill=gender)) + 
-    geom_bar(stat="identity", width = 1, color="white") +
-    coord_polar("y", start=0) +
-    theme_void() +
-    scale_fill_brewer(palette = "Pastel2") +
-    geom_text(aes(y = ypos,label=prop), color="navy", size = 6)
-    
 
 # Load in Abandoned Properties
 abandoned_spatial <- st_read("Abandoned_Property_Parcels.shp")
 
-# Remove geometry var
-abandoned_nogeo <- st_set_geometry(abandoned_spatial, NULL)
-
 # Load in Business data
 business_points <- read.csv("Business_Licenses_geocoded.csv", stringsAsFactors = F) %>% 
-  # Filter out businesses that are physically in South Bend IN only
-  filter(State == "IN")
+  filter(State == "IN")# Filter out businesses that are physically in South Bend IN only
 
-# Convert bussiness to spatial data
+    ### Convert bussiness to spatial data
 business_spatial <- business_points %>% 
   st_as_sf(coords = c("X","Y")) %>% 
   st_set_crs(value = st_crs(abandoned_spatial))
 
-# Clean up zip_code. Add "-" in between zip code
-business_spatial$zip_code <- as.character(business_spatial$Zip_Code) %>%
+    ### Clean up zip_code. Add "-" in between zip code
+business_spatial$Zip_Code <- as.character(business_spatial$Zip_Code) %>%
   gsub('^([0-9]{5})([0-9]+)$', '\\1', .) %>% as.integer(.)
 
 
-abandoned_spatial$zip_code <- as.character(abandoned_spatial$Zip_Code) %>% 
+abandoned_spatial$Zip_Code <- as.character(abandoned_spatial$Zip_Code) %>% 
   gsub('^([0-9]{5})([0-9]+)$', '\\1', .) %>% as.integer(.)
 
+    ### Remove geometry data from the business and abandoned df
+business_nogeo <- business_spatial %>% st_set_geometry(NULL)
 
-# Create pop-up
+abandoned_nogeo <- abandoned_spatial %>% st_set_geometry(NULL)
+
+    ### Create pop-up
 business_spatial$popup <- paste("<b>", business_spatial$Business_N, "</b><br>",
                                 "Type: ", business_spatial$Classifi_1, sep="") 
 
 abandoned_spatial$popup <- paste('<b>', abandoned_spatial$Property_S, "</b><br>",
                                  "Structure Type: ", abandoned_spatial$Structures, sep="")
 
+
+
+# Subset census data for age and gender only 
+census_age_fm <- census_data %>% 
+    select(SE_T003_01, SE_T003_02, starts_with("SE_T008"), -SE_T008_00, geometry)
+
+    ### Joining census data and zip_code together
+google.crs <- 3857
+
+    ### Transform crs 
+zip_code_google <- zip_code %>% st_transform(crs = google.crs)
+
+# st_crs(zip_code_google)
+
+census_data_google <- census_age_fm %>% st_transform((crs=google.crs))
+
+# st_crs(census_data_google)
+
+    ### Join zip_codes onto census_age_fm
+ov <- st_join(x = census_data_google, y = zip_code_google %>% select(ZCTA5))
+
+    ### Total age range and gender population by zip-code
+pop_by_zip <- ov %>% 
+    st_set_geometry(NULL) %>% 
+    group_by(ZCTA5) %>% 
+    summarise(across(.cols = starts_with("SE"), .fns = sum))
+
+colnames(pop_by_zip) <- c("zipcode", "male", "female", "under_5", "5-9",
+                          "10-14","15-17", "18-24", "25-34", "35-44","45-54",
+                          "55-64", "65-74", "75-84", "over_84")
+
+    ### Create dataframes for gender and age separately 
+pop_fm_by_zip <- pop_by_zip %>% select(zipcode, male, female)
+pop_age_by_zip <- pop_by_zip %>% select(-male, -female)
+
+    ### Tidy pop data
+    # Gender data
+pop_fm_tidy <- gather(pop_fm_by_zip, 
+                      key = "gender", 
+                      value = "population",
+                      -zipcode)
+
+    # Age data
+pop_age_tidy <- gather(pop_age_by_zip,
+                       key = "age_range",
+                       value="population",
+                       -zipcode)
+
+age_level <- c("under_5", "5-9","10-14","15-17", "18-24", "25-34", 
+               "35-44","45-54","55-64", "65-74", "75-84", "over_84")
+
+pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
+                
+
+
+
+
+
+
+
+#### NEED TO CREATE A LIST OF UNIQUE ZIP CODES FOR SCHOOLS, PARKS, BUSINESS AND ABANDONED LOTS 
 
 
 ############################################################################
@@ -146,7 +154,8 @@ header <- dashboardHeader(
 
 filter_s <- selectInput(inputId = "zipcode", 
                         label = "ZipCode to Choose",
-                        choices = park_data$Zip_Code, selected=46617
+                        choices = unique(c(unique(park_data$Zip_Code), unique(business_spatial$Zip_Code), unique(abandoned_spatial$Zip_Code))), 
+                        selected=46617
 ) # filter string
 
 
@@ -203,11 +212,11 @@ body <- dashboardBody(
               ), # end box
               tabBox(
                 height = 300,
-                tabPanel("Age Density",
-                         leafletOutput(outputId = "age_density")
+                tabPanel("Age",
+                         plotOutput(outputId = "age_dist")
                 ),
-                tabPanel("View 2",
-                         plotOutput("scatterY", height = 230)
+                tabPanel("Gender",
+                         plotOutput(outputId = "gender_dist")
                 )
               )# end tabbox
             ), # end fluidRow
@@ -296,24 +305,24 @@ ui <- shinyUI(
 
 server <- function(input, output) {
   ## Edith
-  
+    park_zip <- reactive({
+        park_data %>% filter(Zip_Code %in% input$zipcode)
+    })
   #######################################################################
   
   ## Dana
-  
-  # Subset data based on zipcode input
+    
+  ### MAP for BUSINESS AND ABANDONED LOTS
+  # Subset business and abandoned data based on zip code input
   business_zip <- reactive({
-    business_spatial %>% filter(zip_code %in% input$zipcode)
+    business_spatial %>% filter(Zip_Code == input$zipcode)
   })
   
   abandoned_zip <- reactive({
-    abandoned_spatial %>% filter(zip_code %in% input$zipcode)
+    abandoned_spatial %>% filter(Zip_Code == input$zipcode)
   })
   
-  park_zip <- reactive({
-    park_data %>% filter(Zip_Code %in% input$zipcode)
-  })
-  
+  # Create map
   output$bus_map <- renderLeaflet({
     leaflet() %>% 
       
@@ -333,14 +342,14 @@ server <- function(input, output) {
       # Add legend for business
       addLegend(data = business_zip(),
                 labels = "Businesess",
-                colors = 'blue',
+                colors = 'steelblue',
                 opacity = 1,
                 group = "Business") %>%
       
       # Add outline for abandoned properties
       addPolygons(data = abandoned_zip(),
                   popup = ~popup,
-                  color = 'red',
+                  color = '#CC6666',
                   opacity = 0.5,
                   fillOpacity = 0.5,
                   group = "Abandoned Property") %>%
@@ -348,7 +357,7 @@ server <- function(input, output) {
       # Add legend for abandoned properties
       addLegend(data = abandoned_zip(),
                 labels = "Abandoned Properties",
-                colors = 'red',
+                colors = '#CC6666',
                 opacity = 0.5,
                 group = "Abandoned Property") %>%
       
@@ -357,6 +366,66 @@ server <- function(input, output) {
                        options = layersControlOptions(collapsed = F)) 
     
   }) #end bus_map
+
+  
+  
+  ### BAR GRAPH FOR AGE DISTRIBUTION
+  # Subset age data based on zip code
+  age_zip <- reactive({
+      
+      age_filter <- pop_age_tidy %>% 
+          filter(zipcode == input$zipcode) %>% 
+          mutate(prop = round(population/sum(.$population) * 100,2))
+      
+      return(age_filter)
+  }) #end age_zip
+  
+  # Create Bar Chart
+  output$age_dist <- renderPlot({
+      
+      ggplot(age_zip(), aes(x = age_range, y = population)) +
+          
+          geom_bar(stat = "identity", fill = "#9999CC") +
+          
+          labs(title = "Age Distribution", x = "Age Range", y = "Population") +
+          
+          theme_minimal() 
+      
+  }) # end age_dist
+  
+  
+  ### PIE GRAPH FOR GENDER DISTRIBUTION 
+  # Subset gender data based on zip code
+  fm_zip <- reactive({
+      
+      fm_filter <- pop_fm_tidy %>% 
+          filter(zipcode == input$zipcode) %>% 
+          mutate(prop = round(population/sum(.$population) * 100, 2))
+      
+      fm_filter$ypos <- c(80,20)
+      
+      return(fm_filter)
+  }) # end fm_zip
+  
+  # Create Pie Chart
+  output$gender_dist <- renderPlot({
+      
+      ggplot(fm_zip(), 
+             aes(x = "", y = prop, fill = gender)) +
+          
+          geom_bar(stat = "identity", width = 1, color = "white") +
+          
+          coord_polar("y", start = 0) +
+          
+          ggtitle("Gender Distribution") +
+          
+          geom_text(aes(y = ypos, label = prop), color = "navy", size = 6) +
+          
+          scale_fill_brewer(palette = "Pastel2") +
+          
+          theme_void()
+      
+  }) # end gender_dist
   
   
   ######################################################################
