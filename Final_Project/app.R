@@ -139,7 +139,9 @@ pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
 
 
 #### NEED TO CREATE A LIST OF UNIQUE ZIP CODES FOR SCHOOLS, PARKS, BUSINESS AND ABANDONED LOTS 
+zipcode_list = c(park_data$Zip_Code, business_spatial$Zip_Code, abandoned_spatial$Zip_Code) # Edith to add school_data$Zip_Code
 
+unique_zip = unique(zipcode_list)
 
 ############################################################################
 
@@ -154,8 +156,8 @@ header <- dashboardHeader(
 
 filter_s <- selectInput(inputId = "zipcode", 
                         label = "ZipCode to Choose",
-                        choices = unique(c(unique(park_data$Zip_Code), unique(business_spatial$Zip_Code), unique(abandoned_spatial$Zip_Code))), 
-                        selected=46617
+                        choices = unique_zip, 
+                        selected = 46617
 ) # filter string
 
 
@@ -206,20 +208,33 @@ body <- dashboardBody(
     tabItem("business",
             fluidRow(
               box(
-                title = "Businesses",
+                title = "Map", width = 12,
                 status = "primary",
                 leafletOutput(outputId = "bus_map")
+                
+                 )  # end box
+              ), # end fluidRow 1
+            
+            fluidRow(
+              box(
+                title = "Age Distribution", solidHeader = T, width = 6,
+                radioButtons(inputId = "age_choice", label = "",
+                             choices = c("Population Value" = "population", "Population Percentage" = "prop"),
+                             selected = "population"),
+                plotOutput(outputId = "age_dist"), 
+                textOutput(outputId = "warning")
+                ), # end box
+              
+              box(
+                title = "Gender Distribution", solidHeader = T, width = 6,
+                radioButtons(inputId = "fm_choice", label = "",
+                             choices = c("Population Value" = "population", "Population Percentage" = "prop"),
+                             selected = "population"),
+                plotOutput(outputId = "gender_dist"),
+                textOutput(outputId = "warning")
               ), # end box
-              tabBox(
-                height = 300,
-                tabPanel("Age",
-                         plotOutput(outputId = "age_dist")
-                ),
-                tabPanel("Gender",
-                         plotOutput(outputId = "gender_dist")
-                )
-              )# end tabbox
-            ), # end fluidRow
+              
+            ) # end fluidRow 2
     ), # End business tab item Dana
     
     #### ANKUR ##################
@@ -249,6 +264,7 @@ body <- dashboardBody(
             ), # end fluidRow
     ),# About - Ankur
     
+    ### TEMPLATE
     tabItem("temps",
             fluidRow(
               box(
@@ -367,7 +383,8 @@ server <- function(input, output) {
     
   }) #end bus_map
 
-  
+  #### if zip in age and gender zip then graph
+  ### else warning text
   
   ### BAR GRAPH FOR AGE DISTRIBUTION
   # Subset age data based on zip code
@@ -375,18 +392,41 @@ server <- function(input, output) {
       
       age_filter <- pop_age_tidy %>% 
           filter(zipcode == input$zipcode) %>% 
-          mutate(prop = round(population/sum(.$population) * 100,2))
+          mutate(prop = round(population/sum(.$population) * 100, 2))
       
       return(age_filter)
   }) #end age_zip
+
   
   # Create Bar Chart
   output$age_dist <- renderPlot({
-      
+    
+
+    if (input$age_choice == "population") {
+
       ggplot(age_zip(), aes(x = age_range, y = population)) +
-          geom_bar(stat = "identity", fill = "#9999CC") +
-          labs(title = "Age Distribution", x = "Age Range", y = "Population") +
-          theme_minimal() 
+        geom_bar(stat = "identity", fill = "#9999CC") +
+        labs(x = "Age Range", y = "Population") +
+        theme_minimal() +
+        theme(axis.text.x = element_text(size = 12),
+              axis.title.x = element_text(size = 18),
+              axis.text.y = element_text(size = 12),
+              axis.title.y = element_text(size = 18))
+    }
+
+
+    else {
+
+      ggplot(age_zip(), aes(x = age_range, y = prop)) +
+        geom_bar(stat = "identity", fill = "#9999CC") +
+        labs(x = "Age Range", y = "Population %") +
+        theme_minimal() +
+        theme(axis.text.x = element_text(size = 12),
+            axis.title.x = element_text(size = 18),
+            axis.text.y = element_text(size = 12),
+            axis.title.y = element_text(size = 18))
+    }
+     
       
   }) # end age_dist
   
@@ -397,24 +437,38 @@ server <- function(input, output) {
       
       fm_filter <- pop_fm_tidy %>% 
           filter(zipcode == input$zipcode) %>% 
-          mutate(prop = round(population/sum(.$population) * 100, 2))
-      
-      fm_filter$ypos <- c(80,20)
+          mutate(prop = round(population/sum(.$population) * 100, 1))
+  
+      fm_filter$ypos_prop <- c(80,20)
       
       return(fm_filter)
   }) # end fm_zip
   
   # Create Pie Chart
   output$gender_dist <- renderPlot({
-      
-      ggplot(fm_zip(), 
-             aes(x = "", y = prop, fill = gender)) +
-          geom_bar(stat = "identity", width = 1, color = "white") +
+    
+    if (input$fm_choice == "population") {
+  
+      ggplot(fm_zip(), aes(x = "", y = population, fill = gender)) +
+        geom_col(width = 1, color = "white") +
           coord_polar("y", start = 0) +
-          ggtitle("Gender Distribution") +
-          geom_text(aes(y = ypos, label = paste(prop, "%")), color = "navy", size = 6) +
+          ggrepel::geom_text_repel(aes(label = population), color = "navy", size = 6) +
           scale_fill_brewer(palette = "Pastel2") +
-          theme_void()
+          theme_void() +
+        theme(legend.text = element_text(size = 15), legend.title = element_text(face = 'bold', size = 25))
+
+        }
+    
+    else {
+      
+      ggplot(fm_zip(), aes(x = "", y = prop, fill = gender)) +
+        geom_bar(stat = "identity", width = 1, color = "white") +
+        coord_polar("y", start = 0) +
+        geom_text(aes(y = ypos_prop, label = paste0(prop, "%")), color = "navy", size = 6) +
+        scale_fill_brewer(palette = "Pastel2") +
+        theme_void() +
+        theme(legend.text = element_text(size = 15), legend.title = element_text(face = 'bold', size = 25))
+    }
       
   }) # end gender_dist
   
