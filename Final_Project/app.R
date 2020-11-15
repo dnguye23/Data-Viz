@@ -140,6 +140,7 @@ pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
                 
 
 #### NEED TO CREATE A LIST OF UNIQUE ZIP CODES FOR SCHOOLS, PARKS, BUSINESS AND ABANDONED LOTS 
+
 zipcode_list = c(park_data$Zip_Code, business_spatial$Zip_Code, abandoned_spatial$Zip_Code) # Edith to add school_data$Zip_Code
 
 unique_zip = unique(zipcode_list)
@@ -154,7 +155,7 @@ header <- dashboardHeader(
 
 
 filter_s <- selectInput(inputId = "zipcode", 
-                        label = "ZipCode to Choose",
+                        label = "Choose a Zip Code",
                         choices = unique_zip, 
                         selected = 46617
 ) # filter string
@@ -198,17 +199,17 @@ body <- dashboardBody(
                 status = "primary",
                 leafletOutput(outputId = "map")
                 ), # end box
-            
+
             box(
                 selectInput(inputId = "stype",
                         label = "Select School Type:",
                         choices = c("Private", "Public")),
-            
+
                 selectInput(inputId = "ptype",
                         label = "Select Park Type:",
                         choices = types),
                ),
-            
+
             #column(12,
             #navbarPage(
              #  title = "Statistics",
@@ -216,15 +217,15 @@ body <- dashboardBody(
               #),
                # end second box
             ),
-          
-            
+
+
             ), # end fluidRow
-            
+
         #),# end tabItem
-                     
+
     # End parks and schools tab item Edith
-    
-    
+
+
     #### DANA ##################
     
     tabItem("business",
@@ -241,22 +242,20 @@ body <- dashboardBody(
               box(
                 title = "Age Distribution", solidHeader = T, width = 6,
                 radioButtons(inputId = "age_choice", label = "",
-                             choices = c("Population Value" , "Population Percentage" ),
-                             selected = "population"),
-                plotOutput(outputId = "age_dist"), 
-                textOutput(outputId = "warning")
+                             choices = c("Population Value" = "pop" , "Population Percentage" = "prop" ),
+                             selected = "pop"),
+                uiOutput(outputId = "age_plot_or_warning")
                 ), # end box
               
               box(
                 title = "Gender Distribution", solidHeader = T, width = 6,
                 radioButtons(inputId = "fm_choice", label = "",
-                             choices = c("Population Value", "Population Percentage"),
-                             selected = "population"),
-                plotOutput(outputId = "gender_dist"),
-                textOutput(outputId = "warning")
-              ), # end box
-              
+                             choices = c("Population Value" = "pop", "Population Percentage" = 'prop'),
+                             selected = "pop"),
+                uiOutput(outputId = 'gender_plot_or_warning')
+              )# end box
             ) # end fluidRow 2
+            
     ), # End business tab item Dana
     
     #### ANKUR ##################
@@ -376,8 +375,8 @@ server <- function(input, output) {
   
   ## Dana
     
-  ### MAP for BUSINESS AND ABANDONED LOTS
-  # Subset business and abandoned data based on zip code input
+  #### MAP for BUSINESS AND ABANDONED LOTS
+  ## Subset business and abandoned data based on zip code input
   business_zip <- reactive({
     business_spatial %>% filter(Zip_Code == input$zipcode)
   })
@@ -431,95 +430,124 @@ server <- function(input, output) {
     
   }) #end bus_map
 
-  #### if zip in age and gender zip then graph
-  ### else warning text
-  
-  ### BAR GRAPH FOR AGE DISTRIBUTION
-  # Subset age data based on zip code
-  age_zip <- reactive({
+    #### BAR GRAPH FOR AGE DISTRIBUTION
+    ## Subset age data based on zip code
+    age_zip <- reactive({
       
       age_filter <- pop_age_tidy %>% 
-          filter(zipcode == input$zipcode) %>% 
-          mutate(prop = round(population/sum(.$population) * 100, 2))
+        filter(zipcode == input$zipcode) %>% 
+        mutate(prop = round(population/sum(.$population) * 100, 2))
       
       return(age_filter)
-  }) #end age_zip
-
-  
-  # Create Bar Chart
-  output$age_dist <- renderPlot({
+    }) #end age_zip
     
-
-    if (input$age_choice == "Population Value") {
-
-      ggplot(age_zip(), aes(x = age_range, y = population)) +
-        geom_bar(stat = "identity", fill = "#9999CC") +
-        labs(x = "Age Range", y = "Population") +
-        theme_minimal() +
-        theme(axis.text.x = element_text(size = 12),
-              axis.title.x = element_text(size = 18),
-              axis.text.y = element_text(size = 12),
-              axis.title.y = element_text(size = 18))
-    }
-
-
-    else {
-
-      ggplot(age_zip(), aes(x = age_range, y = prop)) +
-        geom_bar(stat = "identity", fill = "#9999CC") +
-        labs(x = "Age Range", y = "Population %") +
-        theme_minimal() +
-        theme(axis.text.x = element_text(size = 12),
-            axis.title.x = element_text(size = 18),
-            axis.text.y = element_text(size = 12),
-            axis.title.y = element_text(size = 18))
-    }
-     
+    ## Switch between population and proportion 
+    age_graph <- reactive({
+      switch(input$age_choice,
+             
+             pop = ggplot(age_zip(), aes(x = age_range, y = population)) +
+                    geom_bar(stat = "identity", fill = "#9999CC") +
+                    labs(x = "Age Range", y = "Population") +
+                    theme_minimal() +
+                    theme(axis.text.x = element_text(size = 12),
+                          axis.title.x = element_text(size = 18),
+                          axis.text.y = element_text(size = 12),
+                          axis.title.y = element_text(size = 18)), 
+            
+            prop = ggplot(age_zip(), aes(x = age_range, y = prop)) +
+                    geom_bar(stat = "identity", fill = "#9999CC") +
+                    labs(x = "Age Range", y = "Population %") +
+                    theme_minimal() +
+                    theme(axis.text.x = element_text(size = 12),
+                          axis.title.x = element_text(size = 18),
+                          axis.text.y = element_text(size = 12),
+                          axis.title.y = element_text(size = 18))
+      ) # end switch
       
-  }) # end age_dist
-  
-  
-  ### PIE GRAPH FOR GENDER DISTRIBUTION 
-  # Subset gender data based on zip code
-  fm_zip <- reactive({
+    }) # end age_graph
+    
+    ## Display age plot or warning
+    output$age_plot <- renderPlot(age_graph())
+    
+    output$age_warning <- renderText({
       
-      fm_filter <- pop_fm_tidy %>% 
-          filter(zipcode == input$zipcode) %>% 
-          mutate(prop = round(population/sum(.$population) * 100, 1))
-  
+      paste("There is no Age data for ", input$zipcode, ". Please select another zip code.")
+      
+    }) # end age_warning
+    
+    output$age_plot_or_warning <- renderUI({
+      
+      if(input$zipcode %in% pop_age_tidy$zipcode) {
+        plotOutput("age_plot")
+        
+      }
+      
+      else{
+        textOutput("age_warning")
+      }
+    })# end age_plot_or_waring
+    
+    
+    #### PIE GRAPH FOR GENDER DISTRIBUTION 
+    ## Subset gender data based on zip code
+    fm_zip <- reactive({
+
+      fm_filter <- pop_fm_tidy %>%
+        filter(zipcode == input$zipcode) %>%
+        mutate(prop = round(population/sum(.$population) * 100, 1))
+
       fm_filter$ypos_prop <- c(80,20)
-      
-      return(fm_filter)
-  }) # end fm_zip
-  
-  # Create Pie Chart
-  output$gender_dist <- renderPlot({
-    
-    if (input$fm_choice == "Population Value") {
-  
-      ggplot(fm_zip(), aes(x = "", y = population, fill = gender)) +
-        geom_col(width = 1, color = "white") +
-          coord_polar("y", start = 0) +
-          ggrepel::geom_text_repel(aes(label = population), color = "navy", size = 6) +
-          scale_fill_brewer(palette = "Pastel2") +
-          theme_void() +
-        theme(legend.text = element_text(size = 15), legend.title = element_text(face = 'bold', size = 25))
 
-        }
+      return(fm_filter)
+    }) # end fm_zip
+
+    ## Switch between population and proportion
+    gender_graph <- reactive({
+      switch(input$fm_choice,
+             
+             pop = ggplot(fm_zip(), aes(x = "", y = population, fill = gender)) +
+                     geom_col(width = 1, color = "white") +
+                     coord_polar("y", start = 0) +
+                     ggrepel::geom_text_repel(aes(label = population), color = "navy", size = 6) +
+                     scale_fill_brewer(palette = "Pastel2") +
+                     theme_void() +
+                     theme(legend.text = element_text(size = 15), legend.title = element_text(face = 'bold', size = 25)),
+
+             prop =  ggplot(fm_zip(), aes(x = "", y = prop, fill = gender)) +
+                     geom_bar(stat = "identity", width = 1, color = "white") +
+                     coord_polar("y", start = 0) +
+                     geom_text(aes(y = ypos_prop, label = paste0(prop, "%")), color = "navy", size = 6) +
+                     scale_fill_brewer(palette = "Pastel2") +
+                     theme_void() +
+                     theme(legend.text = element_text(size = 15), legend.title = element_text(face = 'bold', size = 25))
+             
+      ) # end switch
+    }) # end gender_graph
     
-    else {
+    ## Display gender plot or warning 
+    
+    output$gender_plot <- renderPlot(gender_graph())
+    
+    output$gender_warning <- renderText({
       
-      ggplot(fm_zip(), aes(x = "", y = prop, fill = gender)) +
-        geom_bar(stat = "identity", width = 1, color = "white") +
-        coord_polar("y", start = 0) +
-        geom_text(aes(y = ypos_prop, label = paste0(prop, "%")), color = "navy", size = 6) +
-        scale_fill_brewer(palette = "Pastel2") +
-        theme_void() +
-        theme(legend.text = element_text(size = 15), legend.title = element_text(face = 'bold', size = 25))
-    }
+      paste("There is no Gender data for ", input$zipcode, ". Please select another zip code.")
       
-  }) # end gender_dist
+    })# end gender_warning
+    
+    output$gender_plot_or_warning <- renderUI({
+      
+      if(input$zipcode %in% pop_fm_tidy$zipcode) {
+        plotOutput("gender_plot")
+      }
+      
+      else{
+        textOutput("gender_warning")
+      }
+    })# end gender_plot_or_waring
+    
   
+  
+
   
   ######################################################################
   ## Ankur
