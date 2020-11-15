@@ -14,29 +14,36 @@ library(tidyverse)
 library(stm)
 library(forcats)
 
+
 skin <- Sys.getenv("DASHBOARD_SKIN")
 skin <- tolower(skin)
 if (skin == "")
   skin <- "blue"
 
+## Edith
+
 # Load school data
 school_data <- st_read("School_Boundaries.shp")
 
-# review school data
-# glimpse(school_data)
+# Create popup
+school_data$popup <- paste("<b>", school_data$School, "</b><br>",
+                       "Type: ", school_data$SchoolType, "<br>")
 
 # Load park data
 park_data <- read_csv("Parks_Locations_and_Features.csv")
 
-# review park data
-# glimpse(park_data)
+
+# create popup
+park_data$popup <- paste("<b>", park_data$Park_Name, "</b><br>",
+                         "Type: ", park_data$Park_Type, "<br>",
+                         "Address: ",park_data$Address, "<br>")
 
 # Load census data
 census_data <- st_read("2010_CensusData.shp")
 
-# review park data
-# glimpse(census_data)
 
+############################################################################
+#=======
 # Load Zip code file
 zip_code <- st_read("SJCZipCodes_clip.shp")
 
@@ -132,12 +139,6 @@ age_level <- c("under_5", "5-9","10-14","15-17", "18-24", "25-34",
 pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
                 
 
-
-
-
-
-
-
 #### NEED TO CREATE A LIST OF UNIQUE ZIP CODES FOR SCHOOLS, PARKS, BUSINESS AND ABANDONED LOTS 
 zipcode_list = c(park_data$Zip_Code, business_spatial$Zip_Code, abandoned_spatial$Zip_Code) # Edith to add school_data$Zip_Code
 
@@ -152,8 +153,6 @@ header <- dashboardHeader(
 ) # end header
 
 
-
-
 filter_s <- selectInput(inputId = "zipcode", 
                         label = "ZipCode to Choose",
                         choices = unique_zip, 
@@ -164,7 +163,7 @@ filter_s <- selectInput(inputId = "zipcode",
 sidebar <- dashboardSidebar(
   filter_s,
   sidebarMenu(
-    menuItem("Parks and Schools", tabName = "parks", icon = icon("map")
+    menuItem("Parks and Schools", tabName = "schools", icon = icon("map")
     ), #end menuItem Parks and School - Dana
     
     menuItem("Businesses", icon = icon("th"), tabName = "business"
@@ -192,16 +191,39 @@ body <- dashboardBody(
     
     #### EDITH ##################
     
-    tabItem("parks",
+    tabItem("schools",
             fluidRow(
-              box(
-                title = "Parks",
+            box(
+                title = "Schools and Parks",
                 status = "primary",
-                leafletOutput(outputId = "parks")
-              ), # end box
-              
+                leafletOutput(outputId = "map")
+                ), # end box
+            
+            box(
+                selectInput(inputId = "stype",
+                        label = "Select School Type:",
+                        choices = c("Private", "Public")),
+            
+                selectInput(inputId = "ptype",
+                        label = "Select Park Type:",
+                        choices = types),
+               ),
+            
+            #column(12,
+            #navbarPage(
+             #  title = "Statistics",
+              #tabPanel("Demographics")
+              #),
+               # end second box
+            ),
+          
+            
             ), # end fluidRow
-    ), # End parks tab item Edith
+            
+        #),# end tabItem
+                     
+    # End parks and schools tab item Edith
+    
     
     #### DANA ##################
     
@@ -321,9 +343,35 @@ ui <- shinyUI(
 
 server <- function(input, output) {
   ## Edith
+#<<<<<<< HEAD
+    
+    # filter data based on school type selection
+    dataSchool <- eventReactive(input$stype, {
+                  return(school_data[school_data$SchoolType == input$stype,])
+    })
+    
+    # filter data based on park type selection
+   
+    zipParks <- eventReactive(input$zipcode, {
+                return(park_data[park_data$Zip_Code == input$zipcode,])
+    })
+    
+    dataParks <- eventReactive(input$ptype, {
+                 return(zipParks()%>%filter(Park_Type == input$ptype))
+    })
+    
+    # output the school type and park type
+    output$map <- renderLeaflet({
+                leaflet(data = dataSchool()) %>%
+                addTiles() %>%
+                addPolygons(data = dataSchool(), popup = ~popup) %>%
+                addMarkers(data = dataParks(), popup = ~popup)
+    })
+  
     park_zip <- reactive({
         park_data %>% filter(Zip_Code %in% input$zipcode)
     })
+
   #######################################################################
   
   ## Dana
@@ -518,7 +566,6 @@ server <- function(input, output) {
 } # end server
 
 
-
-
 # Run the application 
 shinyApp(ui = ui, server = server)
+
