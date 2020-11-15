@@ -192,36 +192,36 @@ body <- dashboardBody(
     
     #### EDITH ##################
     
-    tabItem("schools",
-            fluidRow(
-            box(
-                title = "Schools and Parks",
-                status = "primary",
-                leafletOutput(outputId = "map")
-                ), # end box
-
-            box(
-                selectInput(inputId = "stype",
-                        label = "Select School Type:",
-                        choices = c("Private", "Public")),
-
-                selectInput(inputId = "ptype",
-                        label = "Select Park Type:",
-                        choices = types),
-               ),
-
-            #column(12,
-            #navbarPage(
-             #  title = "Statistics",
-              #tabPanel("Demographics")
-              #),
-               # end second box
-            ),
-
-
-            ), # end fluidRow
-
-        #),# end tabItem
+    # tabItem("schools",
+    #         fluidRow(
+    #         box(
+    #             title = "Schools and Parks",
+    #             status = "primary",
+    #             leafletOutput(outputId = "map")
+    #             ), # end box
+    # 
+    #         box(
+    #             selectInput(inputId = "stype",
+    #                     label = "Select School Type:",
+    #                     choices = c("Private", "Public")),
+    # 
+    #             selectInput(inputId = "ptype",
+    #                     label = "Select Park Type:",
+    #                     choices = types),
+    #            ),
+    # 
+    #         #column(12,
+    #         #navbarPage(
+    #          #  title = "Statistics",
+    #           #tabPanel("Demographics")
+    #           #),
+    #            # end second box
+    #         ),
+    # 
+    # 
+    #         ), # end fluidRow
+    # 
+    #     #),# end tabItem
 
     # End parks and schools tab item Edith
 
@@ -446,33 +446,28 @@ server <- function(input, output) {
       switch(input$age_choice,
              
              pop = ggplot(age_zip(), aes(x = age_range, y = population)) +
-                    geom_bar(stat = "identity", fill = "#9999CC") +
-                    labs(x = "Age Range", y = "Population") +
-                    theme_minimal() +
-                    theme(axis.text.x = element_text(size = 12),
-                          axis.title.x = element_text(size = 18),
-                          axis.text.y = element_text(size = 12),
-                          axis.title.y = element_text(size = 18)), 
+                      labs(x = "Age Range", y = "Population"), 
             
-            prop = ggplot(age_zip(), aes(x = age_range, y = prop)) +
-                    geom_bar(stat = "identity", fill = "#9999CC") +
-                    labs(x = "Age Range", y = "Population %") +
-                    theme_minimal() +
-                    theme(axis.text.x = element_text(size = 12),
-                          axis.title.x = element_text(size = 18),
-                          axis.text.y = element_text(size = 12),
-                          axis.title.y = element_text(size = 18))
+             prop = ggplot(age_zip(), aes(x = age_range, y = prop)) +
+                      labs(x = "Age Range", y = "Population %")
+                    
       ) # end switch
       
     }) # end age_graph
     
     ## Display age plot or warning
-    output$age_plot <- renderPlot(age_graph())
+    output$age_plot <- renderPlot({
+      age_graph() +
+        geom_col(fill = "#9999CC") +
+        theme_minimal() +
+        theme(axis.text.x = element_text(size = 12),
+              axis.title.x = element_text(size = 18),
+              axis.text.y = element_text(size = 12),
+              axis.title.y = element_text(size = 18))
+      }) # end age_plot
     
     output$age_warning <- renderText({
-      
       paste("Age data not avaialable for Zip Code ", input$zipcode, ".")
-      
     }) # end age_warning
     
     output$age_plot_or_warning <- renderUI({
@@ -481,10 +476,10 @@ server <- function(input, output) {
         plotOutput("age_plot")
         
       }
-      
       else{
         textOutput("age_warning")
       }
+      
     })# end age_plot_or_warning
     
     
@@ -507,31 +502,29 @@ server <- function(input, output) {
              
              pop = ggplot(fm_zip(), aes(x = "", y = population, fill = gender)) +
                      geom_col(width = 1, color = "white") +
-                     coord_polar("y", start = 0) +
-                     ggrepel::geom_text_repel(aes(label = population), color = "navy", size = 6) +
-                     scale_fill_brewer(palette = "Pastel2") +
-                     theme_void() +
-                     theme(legend.text = element_text(size = 15), legend.title = element_text(face = 'bold', size = 25)),
+                     ggrepel::geom_text_repel(aes(label = population), color = "navy", size = 6),
+                     
 
              prop =  ggplot(fm_zip(), aes(x = "", y = prop, fill = gender)) +
-                     geom_bar(stat = "identity", width = 1, color = "white") +
-                     coord_polar("y", start = 0) +
-                     geom_text(aes(y = ypos_prop, label = paste0(prop, "%")), color = "navy", size = 6) +
-                     scale_fill_brewer(palette = "Pastel2") +
-                     theme_void() +
-                     theme(legend.text = element_text(size = 15), legend.title = element_text(face = 'bold', size = 25))
+                     geom_col(width = 1, color = "white") +
+                     geom_text(aes(y = ypos_prop, label = paste0(prop, "%")), color = "navy", size = 6) 
+                     
              
       ) # end switch
     }) # end gender_graph
     
     ## Display gender plot or warning 
     
-    output$gender_plot <- renderPlot(gender_graph())
+    output$gender_plot <- renderPlot({
+      gender_graph() + 
+        coord_polar("y", start = 0) +
+        scale_fill_brewer(palette = "Pastel2") +
+        theme_void() +
+        theme(legend.text = element_text(size = 15), legend.title = element_text(face = 'bold', size = 25))
+      }) # end gender_plot
     
     output$gender_warning <- renderText({
-      
       paste("Gender data no available for Zip Code ", input$zipcode, ".")
-      
     })# end gender_warning
     
     output$gender_plot_or_warning <- renderUI({
@@ -539,10 +532,10 @@ server <- function(input, output) {
       if(input$zipcode %in% pop_fm_tidy$zipcode) {
         plotOutput("gender_plot")
       }
-      
       else{
         textOutput("gender_warning")
       }
+      
     })# end gender_plot_or_warning
     
   
