@@ -19,39 +19,34 @@ skin <- tolower(skin)
 if (skin == "")
   skin <- "blue"
 
+## Edith
 
 # Load school data
-schools <- st_read("School_Boundaries.shp")
+school_data <- st_read("School_Boundaries.shp")
 
-schools$popup <- paste("<b>", schools$School, "</b><br>",
-                       "Type: ", schools$SchoolType, "<br>")
+# Create popup
+school_data$popup <- paste("<b>", school_data$School, "</b><br>",
+                       "Type: ", school_data$SchoolType, "<br>")
 # Load park data
-parks <- read_csv("Parks_Locations_and_Features.csv")
+park_data <- read_csv("Parks_Locations_and_Features.csv")
 
-parks <- parks %>% 
+# make into spatial data
+park_data <- park_data %>% 
     st_as_sf(coords = c("Lon", "Lat")) %>%
     st_set_crs(value = 4326)
 
-parks$popup <- paste("<b>", parks$Park_Name, "</b><br>",
-                            "Type: ", parks$Park_Type, "<br>",
-                            "Address: ",parks$Address, "<br>")
+# create popup
+park_data$popup <- paste("<b>", park_data$Park_Name, "</b><br>",
+                            "Type: ", park_data$Park_Type, "<br>",
+                            "Address: ",park_data$Address, "<br>")
+# unique parks
 types <- c(unique(parks$Park_Type))
-
-# review park data
-#glimpse(park_data)
-
-# Load census data
-#census_data <- st_read("2010_CensusData.shp")
-
-# review park data
-#glimpse(census_data)
-
 
 #<<<<<<< HEAD
 ############################################################################
 #=======
 # Load Zip code file
-#zip_code <- st_read("SJCZipCodes_clip.shp")
+zip_code <- st_read("SJCZipCodes_clip.shp")
 
 # Review zip code data
 #glimpse(zip_code)
@@ -157,8 +152,6 @@ header <- dashboardHeader(
 ) # end header
 
 
-
-
 filter_s <- selectInput(inputId = "zipcode", 
                         label = "ZipCode to Choose",
                         choices = park_data$Zip_Code, selected=46617
@@ -203,19 +196,31 @@ body <- dashboardBody(
                 status = "primary",
                 leafletOutput(outputId = "map")
                 ), # end box
+            
+            box(
                 selectInput(inputId = "stype",
                         label = "Select School Type:",
                         choices = c("Private", "Public")),
             
                 selectInput(inputId = "ptype",
                         label = "Select Park Type:",
-                        choices = types)
+                        choices = types),
+               ),
+            
+            #column(12,
+            #navbarPage(
+             #  title = "Statistics",
+              #tabPanel("Demographics")
+              #),
+               # end second box
+            ),
+          
+            
             ), # end fluidRow
             
-        ),# end tabItem
+        #),# end tabItem
                      
     # End parks and schools tab item Edith
-    
     
     
     #### DANA ##################
@@ -323,19 +328,26 @@ ui <- shinyUI(
 server <- function(input, output) {
   ## Edith
     
+    # filter data based on school type selection
     dataSchool <- eventReactive(input$stype, {
-                  return(schools[schools$SchoolType == input$stype,])
+                  return(school_data[school_data$SchoolType == input$stype,])
+    })
+    
+    # filter data based on park type selection
+   
+    zipParks <- eventReactive(input$zipcode, {
+                return(park_data[park_data$Zip_Code == input$zipcode,])
     })
     
     dataParks <- eventReactive(input$ptype, {
-                 return(parks[parks$Park_Type == input$ptype,])
+                 return(zipParks()%>%filter(Park_Type == input$ptype))
     })
     
-    
+    # output the school type and park type
     output$map <- renderLeaflet({
                 leaflet(data = dataSchool()) %>%
                 addTiles() %>%
-                addPolygons(popup = ~popup) %>%
+                addPolygons(data = dataSchool(), popup = ~popup) %>%
                 addMarkers(data = dataParks(), popup = ~popup)
     })
   
@@ -444,8 +456,6 @@ server <- function(input, output) {
   
   
 } # end server
-
-
 
 
 # Run the application 
