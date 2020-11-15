@@ -241,7 +241,7 @@ body <- dashboardBody(
               box(
                 title = "Age Distribution", solidHeader = T, width = 6,
                 radioButtons(inputId = "age_choice", label = "",
-                             choices = c("Population Value" = "population", "Population Percentage" = "prop"),
+                             choices = c("Population Value" , "Population Percentage" ),
                              selected = "population"),
                 plotOutput(outputId = "age_dist"), 
                 textOutput(outputId = "warning")
@@ -250,7 +250,7 @@ body <- dashboardBody(
               box(
                 title = "Gender Distribution", solidHeader = T, width = 6,
                 radioButtons(inputId = "fm_choice", label = "",
-                             choices = c("Population Value" = "population", "Population Percentage" = "prop"),
+                             choices = c("Population Value", "Population Percentage"),
                              selected = "population"),
                 plotOutput(outputId = "gender_dist"),
                 textOutput(outputId = "warning")
@@ -450,7 +450,7 @@ server <- function(input, output) {
   output$age_dist <- renderPlot({
     
 
-    if (input$age_choice == "population") {
+    if (input$age_choice == "Population Value") {
 
       ggplot(age_zip(), aes(x = age_range, y = population)) +
         geom_bar(stat = "identity", fill = "#9999CC") +
@@ -495,7 +495,7 @@ server <- function(input, output) {
   # Create Pie Chart
   output$gender_dist <- renderPlot({
     
-    if (input$fm_choice == "population") {
+    if (input$fm_choice == "Population Value") {
   
       ggplot(fm_zip(), aes(x = "", y = population, fill = gender)) +
         geom_col(width = 1, color = "white") +
