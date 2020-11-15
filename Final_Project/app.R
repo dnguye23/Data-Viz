@@ -25,27 +25,93 @@ if (skin == "")
 # Load school data
 school_data <- st_read("School_Boundaries.shp")
 
+zip_code <- st_read("SJCZipCodes_clip.shp")
+
+# Function to get zip code for spatial data
+get_zipcode <- function(df, crs) {
+              
+              google.crs <- crs
+
+              zip_code_google <- zip_code %>% st_transform(crs = google.crs)
+
+              data_google <- df %>% st_transform(crs = google.crs)
+
+              zip_data <- st_join(x = data_google, y = zip_code_google%>%select(ZCTA5))
+
+              zip_data <- zip_data %>% rename(Zip_Code = ZCTA5)
+              
+              return(zip_data)
+}
+
+# get zip code for school data
+school_data <- get_zipcode(school_data, 4326)
+
 # Create popup
 school_data$popup <- paste("<b>", school_data$School, "</b><br>",
-                       "Type: ", school_data$SchoolType, "<br>")
+                       "Type: ", school_data$SchoolType, "<br>",
+                       "Zip:", school_data$Zip_Code, "<br>")
 
 # Load park data
 park_data <- read_csv("Parks_Locations_and_Features.csv")
-
 
 # create popup
 park_data$popup <- paste("<b>", park_data$Park_Name, "</b><br>",
                          "Type: ", park_data$Park_Type, "<br>",
                          "Address: ",park_data$Address, "<br>")
 
+types <- c(unique(park_data$Park_Type))
 # Load census data
 census_data <- st_read("2010_CensusData.shp")
+
+# get population type data
+population <- census_data %>% select(starts_with("SE_T054",), geometry)
+
+# get zip code for selected data
+population <- get_zipcode(population, 4326)
+
+
+population <- st_drop_geometry(population)
+
+# rename columns
+names(population) <- c("Total", "White", "African American",
+                       "American Indian or Alaska Native", "Asian", "Native Hawaiian Pacific Islander",
+                       "Some Other Race", "Two or More Races", "Zip_Code")
+# omit na
+population <- na.omit(population)
+
+# tidy data
+population <- gather(population, key= "Race", value = "RaceTotal", -c(Total, Zip_Code))
+
+# aggregate data by zip code and race
+popAgregate <- population%>%group_by(Zip_Code, Race) %>%
+               summarise(Total = sum(RaceTotal))
+
+# find total for all groups 
+totals <- popAgregate %>% group_by(Zip_Code) %>%summarise(Totals = sum(Total))
+
+# include total column on original data
+popAgregate <- left_join(popAgregate, totals, by = "Zip_Code")
+
+# calculate percent of each race 
+popAgregate <- popAgregate%>%mutate(percent = round(Total/Totals*100))
+
+# make character variables into factors
+popAgregate$Zip_Code <- as.factor(popAgregate$Zip_Code)
+
+popAgregate$Race <- as.factor(popAgregate$Race)
+
+# select data for households
+households <- census_data%>%select(starts_with("SE_T058"), geometry)
+
+households <- get_zipcode(households, 4326)
+
+glimpse(households)
 
 
 ############################################################################
 #=======
 # Load Zip code file
-zip_code <- st_read("SJCZipCodes_clip.shp")
+#zip_code <- st_read("SJCZipCodes_clip.shp")
 
 # Review zip code data
 # glimpse(zip_code)
@@ -98,7 +164,6 @@ google.crs <- 3857
 zip_code_google <- zip_code %>% st_transform(crs = google.crs)
 
 # st_crs(zip_code_google)
-
 census_data_google <- census_age_fm %>% st_transform((crs=google.crs))
 
 # st_crs(census_data_google)
@@ -153,7 +218,11 @@ header <- dashboardHeader(
 
 filter_s <- selectInput(inputId = "zipcode", 
                         label = "ZipCode to Choose",
-                        choices = unique(c(unique(park_data$Zip_Code), unique(business_spatial$Zip_Code), unique(abandoned_spatial$Zip_Code))), 
+                        choices = unique(c(unique(park_data$Zip_Code), 
+                                           unique(business_spatial$Zip_Code), 
+                                           unique(abandoned_spatial$Zip_Code),
+                                           unique(school_data$Zip_Code),
+                                           unique(popAgregate$Zip_Code))), 
                         selected=46617
 ) # filter string
 
@@ -194,31 +263,36 @@ body <- dashboardBody(
             box(
                 title = "Schools and Parks",
                 status = "primary",
-                leafletOutput(outputId = "map")
+                leafletOutput(outputId = "map"),
                 ), # end box
             
-            box(
+             tabBox(
+                    height = 455,
+                    tabPanel("Population Distribution",
+                    plotOutput(outputId = "distPie", height = 400)
+                    ),
+                    
+                    tabPanel("Household Distribution",
+                    #plotOutput("scatter2", height = 230)
+                     )
+                  )
+             ),
+             
+            fluidRow(
+              box(
+                
                 selectInput(inputId = "stype",
-                        label = "Select School Type:",
-                        choices = c("Private", "Public")),
-            
+                            label = "Select School Type:",
+                            choices = c("Private", "Public")),
+                
                 selectInput(inputId = "ptype",
-                        label = "Select Park Type:",
-                        choices = types),
-               ),
-            
-            #column(12,
-            #navbarPage(
-             #  title = "Statistics",
-              #tabPanel("Demographics")
-              #),
-               # end second box
-            ),
+                            label = "Select Park Type:",
+                            choices = types),
+              )
           
+           ) # end 
             
-            ), # end fluidRow
-            
-        #),# end tabItem
+        ),# end tabItem
                      
     # End parks and schools tab item Edith
     
@@ -325,36 +399,57 @@ ui <- shinyUI(
   
 )
 
-server <- function(input, output) {
+server <- function(input, output, session) {
   ## Edith
 #<<<<<<< HEAD
+  
+    # filter data based on park type selection
+    
+    zipSchool <- eventReactive(input$zipcode,{
+      return(school_data[school_data$Zip_Code == input$zipcode,])
+    })
     
     # filter data based on school type selection
     dataSchool <- eventReactive(input$stype, {
-                  return(school_data[school_data$SchoolType == input$stype,])
+      return(zipSchool()%>%filter(SchoolType == input$stype))
     })
     
-    # filter data based on park type selection
-   
     zipParks <- eventReactive(input$zipcode, {
-                return(park_data[park_data$Zip_Code == input$zipcode,])
+      return(park_data[park_data$Zip_Code == input$zipcode,])
     })
     
     dataParks <- eventReactive(input$ptype, {
-                 return(zipParks()%>%filter(Park_Type == input$ptype))
+      return(zipParks()%>%filter(Park_Type == input$ptype))
+     
+    })
+    
+    zip <- eventReactive(input$zipcode, {
+           return(popAgregate%>%filter(Zip_Code == input$zipcode))
+           
     })
     
     # output the school type and park type
     output$map <- renderLeaflet({
-                leaflet(data = dataSchool()) %>%
+                leaflet() %>%
                 addTiles() %>%
                 addPolygons(data = dataSchool(), popup = ~popup) %>%
                 addMarkers(data = dataParks(), popup = ~popup)
     })
   
-    park_zip <- reactive({
-        park_data %>% filter(Zip_Code %in% input$zipcode)
+    output$distPie <- renderPlot({
+                      zip()%>% 
+                      ggplot(aes(fct_reorder(Race, percent), percent)) + 
+                      geom_bar(stat = "identity", fill = "#f68060", alpha = 0.6) + 
+                      theme(panel.background = element_blank()) + 
+                      theme(axis.line.x = element_line(colour = "black")) +
+                      theme(axis.line.y = element_line(colour = "black")) +
+                      xlab("") +
+                      coord_flip()
     })
+    
+   # park_zip <- reactive({
+    #            park_data %>% filter(Zip_Code %in% input$zipcode)
+    #})
 
   #######################################################################
   
@@ -363,16 +458,16 @@ server <- function(input, output) {
   ### MAP for BUSINESS AND ABANDONED LOTS
   # Subset business and abandoned data based on zip code input
   business_zip <- reactive({
-    business_spatial %>% filter(Zip_Code == input$zipcode)
+                  business_spatial %>% filter(Zip_Code == input$zipcode)
   })
   
   abandoned_zip <- reactive({
-    abandoned_spatial %>% filter(Zip_Code == input$zipcode)
+                     abandoned_spatial %>% filter(Zip_Code == input$zipcode)
   })
   
   # Create map
   output$bus_map <- renderLeaflet({
-    leaflet() %>% 
+     leaflet() %>% 
       
       addTiles() %>% 
       
@@ -506,8 +601,7 @@ server <- function(input, output) {
     y <- x + rnorm(1000) * spread
     plot(x, y, pch = ".", col = "red")
   })
-  
-  
+
   
 } # end server
 
