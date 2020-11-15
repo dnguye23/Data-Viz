@@ -384,11 +384,8 @@ server <- function(input, output) {
   output$age_dist <- renderPlot({
       
       ggplot(age_zip(), aes(x = age_range, y = population)) +
-          
           geom_bar(stat = "identity", fill = "#9999CC") +
-          
           labs(title = "Age Distribution", x = "Age Range", y = "Population") +
-          
           theme_minimal() 
       
   }) # end age_dist
@@ -412,17 +409,11 @@ server <- function(input, output) {
       
       ggplot(fm_zip(), 
              aes(x = "", y = prop, fill = gender)) +
-          
           geom_bar(stat = "identity", width = 1, color = "white") +
-          
           coord_polar("y", start = 0) +
-          
           ggtitle("Gender Distribution") +
-          
-          geom_text(aes(y = ypos, label = prop), color = "navy", size = 6) +
-          
+          geom_text(aes(y = ypos, label = paste(prop, "%")), color = "navy", size = 6) +
           scale_fill_brewer(palette = "Pastel2") +
-          
           theme_void()
       
   }) # end gender_dist
