@@ -386,13 +386,7 @@ body <- dashboardBody(
     
     tabItem("about",
             fluidRow(
-              box(
-                title = "About the Project",
-                width = 4,
-                background = "maroon",
-                "This is South-Bend Dashboard. For the residents of south Bend and businesses, this dashboard will show the nearby parks and businesses around your neighborhood.
-                        You can navigate through this dashboard, and feel free to let us know if you have any questions.
-                        Project Team - Ankur, Dana and Edith"
+              column(6, includeMarkdown("about.Rmd")
               ), # end box
               
             ), # end fluidRow
