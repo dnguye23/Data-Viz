@@ -220,19 +220,19 @@ header <- dashboardHeader(
 
 
 filter_s <- selectInput(inputId = "zipcode", 
-<<<<<<< HEAD
+
                         label = "ZipCode to Choose",
                         choices = unique(c(unique(park_data$Zip_Code), 
                                            unique(business_spatial$Zip_Code), 
                                            unique(abandoned_spatial$Zip_Code),
                                            unique(school_data$Zip_Code),
                                            unique(popAgregate$Zip_Code))), 
-                        selected=46617
-=======
-                        label = "Choose a Zip Code",
-                        choices = unique_zip, 
-                        selected = 46617
->>>>>>> 2a4edd0a42335bdaf431a8a5a42b54172aaa05bd
+                        selected=46617,
+
+                        #label = "Choose a Zip Code",
+                        #choices = unique_zip, 
+                        #selected = 46617
+
 ) # filter string
 
 
@@ -267,7 +267,7 @@ body <- dashboardBody(
     
     #### EDITH ##################
     
-<<<<<<< HEAD
+
     tabItem("schools",
             fluidRow(
             box(
@@ -304,7 +304,6 @@ body <- dashboardBody(
             
         ),# end tabItem
                      
-=======
     # tabItem("schools",
     #         fluidRow(
     #         box(
@@ -336,7 +335,7 @@ body <- dashboardBody(
     # 
     #     #),# end tabItem
 
->>>>>>> 2a4edd0a42335bdaf431a8a5a42b54172aaa05bd
+
     # End parks and schools tab item Edith
 
 
