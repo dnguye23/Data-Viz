@@ -94,11 +94,6 @@ popAggregate <- left_join(popAggregate, totals, by = "Zip_Code")
 # calculate percent of each race 
 popAggregate <- popAggregate%>%mutate(percent = round(Total/Totals*100))
 
-# make character variables into factors
-#popAggregate$Zip_Code <- as.factor(popAggregate$Zip_Code)
-
-#popAggregate$Race <- as.factor(popAggregate$Race)
-
 # select data for households
 households <- census_data%>%select(starts_with("SE_T058"), geometry)
 
@@ -154,12 +149,6 @@ householdsFamily$labelPositions <- (householdsFamily$ymax + householdsFamily$ymi
 householdsFamily$label <- paste0(householdsFamily$FamNonFam, "\n", round(householdsFamily$percent*100), "%")
 
 ############################################################################
-#=======
-# Load Zip code file
-#zip_code <- st_read("SJCZipCodes_clip.shp")
-
-# Review zip code data
-# glimpse(zip_code)
 
 
 ### Dana
@@ -526,7 +515,7 @@ server <- function(input, output, session) {
     output$barTwo <- renderPlot({
                      zipOne()%>% 
                      ggplot(aes(fct_reorder(Race, percent), percent)) + 
-                     geom_bar(stat = "identity", fill = "#8bd6bb", alpha = 0.6) + 
+                     geom_bar(stat = "identity", fill = "#f0c188", alpha = 0.6) + 
                      theme(panel.background = element_blank()) + 
                      theme(axis.line.y = element_line(colour = "black")) +
                      geom_text(aes(label = paste0(percent,"%"), vjust = -.2, hjust = "center"), 
@@ -717,9 +706,6 @@ server <- function(input, output, session) {
       
     })# end gender_plot_or_warning
     
-  
-  
-
   
   ######################################################################
   ## Ankur
