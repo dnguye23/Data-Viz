@@ -11,8 +11,9 @@ library(sf)
 library(ggmap)
 library(magrittr)
 library(tidyverse)
-library(stm)
 library(forcats)
+library(plotly)
+library(RColorBrewer)
 
 
 skin <- Sys.getenv("DASHBOARD_SKIN")
@@ -24,6 +25,9 @@ if (skin == "")
 
 # Load school data
 school_data <- st_read("School_Boundaries.shp")
+
+# Load census data
+census_data <- st_read("2010_CensusData.shp")
 
 zip_code <- st_read("SJCZipCodes_clip.shp")
 
@@ -60,8 +64,7 @@ park_data$popup <- paste("<b>", park_data$Park_Name, "</b><br>",
                          "Address: ",park_data$Address, "<br>")
 
 types <- c(unique(park_data$Park_Type))
-# Load census data
-census_data <- st_read("2010_CensusData.shp")
+
 
 # get population type data
 population <- census_data %>% select(starts_with("SE_T054",), geometry)
@@ -96,7 +99,7 @@ popAgregate <- left_join(popAgregate, totals, by = "Zip_Code")
 popAgregate <- popAgregate%>%mutate(percent = round(Total/Totals*100))
 
 # make character variables into factors
-popAgregate$Zip_Code <- as.factor(popAgregate$Zip_Code)
+#popAgregate$Zip_Code <- as.factor(popAgregate$Zip_Code)
 
 popAgregate$Race <- as.factor(popAgregate$Race)
 
@@ -110,12 +113,6 @@ glimpse(households)
 
 ############################################################################
 #=======
-# Load Zip code file
-#zip_code <- st_read("SJCZipCodes_clip.shp")
-
-# Review zip code data
-# glimpse(zip_code)
-
 
 ### Dana
 
@@ -126,12 +123,12 @@ abandoned_spatial <- st_read("Abandoned_Property_Parcels.shp")
 business_points <- read.csv("Business_Licenses_geocoded.csv", stringsAsFactors = F) %>% 
   filter(State == "IN")# Filter out businesses that are physically in South Bend IN only
 
-    ### Convert bussiness to spatial data
+# Convert bussiness to spatial data
 business_spatial <- business_points %>% 
   st_as_sf(coords = c("X","Y")) %>% 
-  st_set_crs(value = st_crs(abandoned_spatial))
+  st_set_crs(value = st_crs(4326))
 
-    ### Clean up zip_code. Add "-" in between zip code
+# Clean up zip_code. Remove the last 4 digits of codes that have 9 digits
 business_spatial$Zip_Code <- as.character(business_spatial$Zip_Code) %>%
   gsub('^([0-9]{5})([0-9]+)$', '\\1', .) %>% as.integer(.)
 
@@ -139,12 +136,7 @@ business_spatial$Zip_Code <- as.character(business_spatial$Zip_Code) %>%
 abandoned_spatial$Zip_Code <- as.character(abandoned_spatial$Zip_Code) %>% 
   gsub('^([0-9]{5})([0-9]+)$', '\\1', .) %>% as.integer(.)
 
-    ### Remove geometry data from the business and abandoned df
-business_nogeo <- business_spatial %>% st_set_geometry(NULL)
-
-abandoned_nogeo <- abandoned_spatial %>% st_set_geometry(NULL)
-
-    ### Create pop-up
+# Create pop-up
 business_spatial$popup <- paste("<b>", business_spatial$Business_N, "</b><br>",
                                 "Type: ", business_spatial$Classifi_1, sep="") 
 
@@ -152,47 +144,41 @@ abandoned_spatial$popup <- paste('<b>', abandoned_spatial$Property_S, "</b><br>"
                                  "Structure Type: ", abandoned_spatial$Structures, sep="")
 
 
+# Subset data for gender
+census_fm <- census_data %>% select(SE_T003_01, SE_T003_02, geometry)
 
-# Subset census data for age and gender only 
-census_age_fm <- census_data %>% 
-    select(SE_T003_01, SE_T003_02, starts_with("SE_T008"), -SE_T008_00, geometry)
+# Get zip codes for gender data
+# Groupby zip and summarize total gender data by zip 
+pop_fm_by_zip <- get_zipcode(census_fm, 3857) %>% 
+  st_set_geometry(NULL) %>% 
+  group_by(Zip_Code) %>% 
+  summarise(across(.cols = starts_with("SE"), .fns = sum))
 
-    ### Joining census data and zip_code together
-google.crs <- 3857
+colnames(pop_fm_by_zip) <- c("zipcode", "male", "female")
 
-    ### Transform crs 
-zip_code_google <- zip_code %>% st_transform(crs = google.crs)
-
-# st_crs(zip_code_google)
-census_data_google <- census_age_fm %>% st_transform((crs=google.crs))
-
-# st_crs(census_data_google)
-
-    ### Join zip_codes onto census_age_fm
-ov <- st_join(x = census_data_google, y = zip_code_google %>% select(ZCTA5))
-
-    ### Total age range and gender population by zip-code
-pop_by_zip <- ov %>% 
-    st_set_geometry(NULL) %>% 
-    group_by(ZCTA5) %>% 
-    summarise(across(.cols = starts_with("SE"), .fns = sum))
-
-colnames(pop_by_zip) <- c("zipcode", "male", "female", "under_5", "5-9",
-                          "10-14","15-17", "18-24", "25-34", "35-44","45-54",
-                          "55-64", "65-74", "75-84", "over_84")
-
-    ### Create dataframes for gender and age separately 
-pop_fm_by_zip <- pop_by_zip %>% select(zipcode, male, female)
-pop_age_by_zip <- pop_by_zip %>% select(-male, -female)
-
-    ### Tidy pop data
-    # Gender data
+# Tidy gender data
 pop_fm_tidy <- gather(pop_fm_by_zip, 
                       key = "gender", 
                       value = "population",
                       -zipcode)
 
-    # Age data
+
+
+# Subset data for age
+census_age <- census_data %>% select(starts_with("SE_T008"), -SE_T008_00, geometry)
+
+# Get zip codes for age data
+# Groupby zip and summarize total age data by zip 
+pop_age_by_zip <- get_zipcode(census_age, 3857) %>% 
+  st_set_geometry(NULL) %>% 
+  group_by(Zip_Code) %>% 
+  summarise(across(.cols = starts_with("SE"), .fns = sum))
+
+colnames(pop_age_by_zip) <- c("zipcode", "under_5", "5-9",
+                          "10-14","15-17", "18-24", "25-34", "35-44","45-54",
+                          "55-64", "65-74", "75-84", "over_84")
+
+# Tidy age data
 pop_age_tidy <- gather(pop_age_by_zip,
                        key = "age_range",
                        value="population",
@@ -204,11 +190,43 @@ age_level <- c("under_5", "5-9","10-14","15-17", "18-24", "25-34",
 pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
                 
 
-#### NEED TO CREATE A LIST OF UNIQUE ZIP CODES FOR SCHOOLS, PARKS, BUSINESS AND ABANDONED LOTS 
+#### UNIQUE ZIP CODES FOR SCHOOLS, PARKS, BUSINESS AND ABANDONED LOTS 
 
-zipcode_list = c(park_data$Zip_Code, business_spatial$Zip_Code, abandoned_spatial$Zip_Code) # Edith to add school_data$Zip_Code
+unique_zip <-  sort(unique(c(unique(park_data$Zip_Code), unique(business_spatial$Zip_Code), 
+                      unique(abandoned_spatial$Zip_Code), unique(school_data$Zip_Code), 
+                      unique(popAgregate$Zip_Code))))
 
-unique_zip = unique(zipcode_list)
+#pie test
+test <- pop_fm_tidy %>% filter (zipcode ==46617)
+test_plotly <- plot_ly(test, labels = ~gender, values = ~population, type = "pie", 
+                       textposition = "inside",
+                       textinfo = "label+value",
+                       insidetextfont = list(color = '#FFFFFF'),
+                       hoverinfo = "skip",
+                       marker = list(colors = c("#b7ebab","#ebc8ab"),
+                                     line = list(color = '#FFFFFF', width = 1)),
+                       showlegend = F) %>%  
+  layout(yaxis=list(showgrid = F, 
+                    zeroline = F,
+                    showticklabels = F),
+         xaxis= list(showgrid = F, 
+                     zeroline = F,
+                     showticklabels = F)
+       )
+
+test_plotly
+
+#bar test
+bar_test <-  pop_age_tidy %>% filter (zipcode==46617) %>% 
+  plot_ly(., x = ~age_range, y = ~population, type = 'bar', color = I("#9999CC"),
+        text = ~population,
+        textposition="inside",
+        insidetextfont = list(color = '#FFFFFF', size = 6),
+        hoverinfo = "y",
+        marker = list(line))
+
+bar_test
+
 
 ############################################################################
 
@@ -220,20 +238,10 @@ header <- dashboardHeader(
 
 
 filter_s <- selectInput(inputId = "zipcode", 
-
-                        label = "ZipCode to Choose",
-                        choices = unique(c(unique(park_data$Zip_Code), 
-                                           unique(business_spatial$Zip_Code), 
-                                           unique(abandoned_spatial$Zip_Code),
-                                           unique(school_data$Zip_Code),
-                                           unique(popAgregate$Zip_Code))), 
-                        selected=46617,
-
-                        #label = "Choose a Zip Code",
-                        #choices = unique_zip, 
-                        #selected = 46617
-
-) # filter string
+                        label = "Choose a Zip Code",
+                        choices = business_spatial$Zip_Code, 
+                        selected = 46617
+                        ) # filter string
 
 
 sidebar <- dashboardSidebar(
@@ -268,73 +276,42 @@ body <- dashboardBody(
     #### EDITH ##################
     
 
-    tabItem("schools",
-            fluidRow(
-            box(
-                title = "Schools and Parks",
-                status = "primary",
-                leafletOutput(outputId = "map"),
-                ), # end box
-            
-             tabBox(
-                    height = 455,
-                    tabPanel("Population Distribution",
-                    plotOutput(outputId = "distPie", height = 400)
-                    ),
-                    
-                    tabPanel("Household Distribution",
-                    #plotOutput("scatter2", height = 230)
-                     )
-                  )
-             ),
-             
-            fluidRow(
-              box(
-                
-                selectInput(inputId = "stype",
-                            label = "Select School Type:",
-                            choices = c("Private", "Public")),
-                
-                selectInput(inputId = "ptype",
-                            label = "Select Park Type:",
-                            choices = types),
-              )
-          
-           ) # end 
-            
-        ),# end tabItem
-                     
     # tabItem("schools",
     #         fluidRow(
     #         box(
     #             title = "Schools and Parks",
     #             status = "primary",
-    #             leafletOutput(outputId = "map")
+    #             leafletOutput(outputId = "map"),
     #             ), # end box
-    # 
-    #         box(
+    #         
+    #          tabBox(
+    #                 height = 455,
+    #                 tabPanel("Population Distribution",
+    #                 plotOutput(outputId = "distPie", height = 400)
+    #                 ),
+    #                 
+    #                 tabPanel("Household Distribution",
+    #                 #plotOutput("scatter2", height = 230)
+    #                  )
+    #               )
+    #          ),
+    #          
+    #         fluidRow(
+    #           box(
+    #             
     #             selectInput(inputId = "stype",
-    #                     label = "Select School Type:",
-    #                     choices = c("Private", "Public")),
-    # 
+    #                         label = "Select School Type:",
+    #                         choices = c("Private", "Public")),
+    #             
     #             selectInput(inputId = "ptype",
-    #                     label = "Select Park Type:",
-    #                     choices = types),
-    #            ),
-    # 
-    #         #column(12,
-    #         #navbarPage(
-    #          #  title = "Statistics",
-    #           #tabPanel("Demographics")
-    #           #),
-    #            # end second box
-    #         ),
-    # 
-    # 
-    #         ), # end fluidRow
-    # 
-    #     #),# end tabItem
-
+    #                         label = "Select Park Type:",
+    #                         choices = types),
+    #           )
+    #       
+    #        ) # end 
+    #         
+    #     ),# end tabItem
+    #                  
 
     # End parks and schools tab item Edith
 
@@ -353,7 +330,7 @@ body <- dashboardBody(
             
             fluidRow(
               box(
-                title = "Age Distribution", solidHeader = T, width = 6,
+                title = "Population Distribution by Age Range", solidHeader = T, width = 6,
                 radioButtons(inputId = "age_choice", label = "",
                              choices = c("Population Value" = "pop" , "Population Percentage" = "prop" ),
                              selected = "pop"),
@@ -361,7 +338,7 @@ body <- dashboardBody(
                 ), # end box
               
               box(
-                title = "Gender Distribution", solidHeader = T, width = 6,
+                title = "Population Distribution by Gender", solidHeader = T, width = 6,
                 radioButtons(inputId = "fm_choice", label = "",
                              choices = c("Population Value" = "pop", "Population Percentage" = 'prop'),
                              selected = "pop"),
@@ -573,25 +550,50 @@ server <- function(input, output, session) {
     age_graph <- reactive({
       switch(input$age_choice,
              
-             pop = ggplot(age_zip(), aes(x = age_range, y = population)) +
-                      labs(x = "Age Range", y = "Population"), 
-            
-             prop = ggplot(age_zip(), aes(x = age_range, y = prop)) +
-                      labs(x = "Age Range", y = "Population %")
+             # pop = ggplot(age_zip(), aes(x = age_range, y = population)) +
+             #          labs(x = "Age", y = "Population"), 
+             # 
+             # prop = ggplot(age_zip(), aes(x = age_range, y = prop)) +
+             #          labs(x = "Age", y = "Population %")
+             #        
+             
+             pop = plot_ly(age_zip(), x = ~age_range, y = ~population, type = 'bar', color = I("#9999CC"),
+                       #text = ~paste("Age Range:", age_range, "<br>","Population:",population),
+                       hoverinfo = 'y') %>%  
+               layout(yaxis=list(title = "Population")), 
                     
+             
+             prop = plot_ly(age_zip(), x = ~age_range, y = ~prop, type = 'bar', color = I("#9999CC"),
+                            #text = ~paste("Age Range:", age_range, "<br>","Percentage:",prop, "%"),
+                            hoverinfo = 'y') %>%  
+               layout(yaxis=list(title = "Population %"))
+                     
       ) # end switch
       
     }) # end age_graph
     
     ## Display age plot or warning
-    output$age_plot <- renderPlot({
-      age_graph() +
-        geom_col(fill = "#9999CC") +
-        theme_minimal() +
-        theme(axis.text.x = element_text(size = 12),
-              axis.title.x = element_text(size = 18),
-              axis.text.y = element_text(size = 12),
-              axis.title.y = element_text(size = 18))
+    output$age_plot <- renderPlotly({
+      age_graph() %>% layout(yaxis=list(titlefont = list(size = 13,
+                                                         color ="#9999CC"),
+                                        tickfont = list (size = 11,
+                                                         color = "#9999CC"),
+                                        showgrid = T),
+                             xaxis= list(title = "Age",
+                                         titlefont = list(size = 13,
+                                                          color ="#9999CC"),
+                                         tickfont = list (size = 11,
+                                                          color = "#9999CC")),
+                             bargap = 0.3)  #+
+        # geom_col(fill = "#9999CC", width = 0.7) +
+        # theme_minimal() +
+        # theme(axis.text.x = element_text(size = 12),
+        #       axis.title.x = element_text(size = 15, color = "grey50"),
+        #       axis.text.y = element_text(size = 12),
+        #       axis.title.y = element_text(size = 15, color = "grey50"),
+        #       panel.grid.major = element_blank(),
+        #       panel.grid.minor = element_blank()
+        #       )
       }) # end age_plot
     
     output$age_warning <- renderText({
@@ -601,7 +603,7 @@ server <- function(input, output, session) {
     output$age_plot_or_warning <- renderUI({
       
       if(input$zipcode %in% pop_age_tidy$zipcode) {
-        plotOutput("age_plot")
+        plotlyOutput("age_plot")
         
       }
       else{
@@ -630,12 +632,12 @@ server <- function(input, output, session) {
              
              pop = ggplot(fm_zip(), aes(x = "", y = population, fill = gender)) +
                      geom_col(width = 1, color = "white") +
-                     ggrepel::geom_text_repel(aes(label = population), color = "navy", size = 6),
+                     ggrepel::geom_text_repel(aes(label = population), color = "white", size = 6),
                      
 
              prop =  ggplot(fm_zip(), aes(x = "", y = prop, fill = gender)) +
                      geom_col(width = 1, color = "white") +
-                     geom_text(aes(y = ypos_prop, label = paste0(prop, "%")), color = "navy", size = 6) 
+                     geom_text(aes(y = ypos_prop, label = paste0(prop, "%")), color = "white", size = 6) 
                      
              
       ) # end switch
@@ -648,7 +650,8 @@ server <- function(input, output, session) {
         coord_polar("y", start = 0) +
         scale_fill_brewer(palette = "Pastel2") +
         theme_void() +
-        theme(legend.text = element_text(size = 15), legend.title = element_text(face = 'bold', size = 25))
+        theme(legend.text = element_text(size = 15, color = "grey50"), 
+              legend.title = element_text(face = 'bold', size = 25, colour = "grey50"))
       }) # end gender_plot
     
     output$gender_warning <- renderText({
