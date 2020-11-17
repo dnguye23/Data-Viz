@@ -15,7 +15,6 @@ library(forcats)
 library(plotly)
 library(RColorBrewer)
 
-
 skin <- Sys.getenv("DASHBOARD_SKIN")
 skin <- tolower(skin)
 if (skin == "")
@@ -77,7 +76,7 @@ population <- st_drop_geometry(population)
 
 # rename columns
 names(population) <- c("Total", "White", "African American",
-                       "American Indian or Alaska Native", "Asian", "Native Hawaiian Pacific Islander",
+                       "American Indian", "Asian", "Native Hawaiian",
                        "Some Other Race", "Two or More Races", "Zip_Code")
 # omit na
 population <- na.omit(population)
@@ -86,33 +85,88 @@ population <- na.omit(population)
 population <- gather(population, key= "Race", value = "RaceTotal", -c(Total, Zip_Code))
 
 # aggregate data by zip code and race
-popAgregate <- population%>%group_by(Zip_Code, Race) %>%
+popAggregate <- population%>%group_by(Zip_Code, Race) %>%
                summarise(Total = sum(RaceTotal))
 
 # find total for all groups 
-totals <- popAgregate %>% group_by(Zip_Code) %>%summarise(Totals = sum(Total))
+totals <- popAggregate %>% group_by(Zip_Code) %>%summarise(Totals = sum(Total))
 
 # include total column on original data
-popAgregate <- left_join(popAgregate, totals, by = "Zip_Code")
+popAggregate <- left_join(popAggregate, totals, by = "Zip_Code")
 
 # calculate percent of each race 
+<<<<<<< HEAD
 popAgregate <- popAgregate%>%mutate(percent = round(Total/Totals*100))
 
 # make character variables into factors
 #popAgregate$Zip_Code <- as.factor(popAgregate$Zip_Code)
 
 popAgregate$Race <- as.factor(popAgregate$Race)
+=======
+popAggregate <- popAggregate%>%mutate(percent = round(Total/Totals*100))
+>>>>>>> d3f89942555751c52063691f93c33a8492fb8a0b
 
 # select data for households
 households <- census_data%>%select(starts_with("SE_T058"), geometry)
 
 households <- get_zipcode(households, 4326)
 
-glimpse(households)
+households <- st_drop_geometry(households)
 
+# exclude totals per main household type
+households <- households%>%select(-c("SE_T058_00", "SE_T058_06", 
+                                     "SE_T058_01", "SE_T058_03"))
+# set names for new columns
+names(households) <- c("Married", "Male Householder", "Female Householder",
+                       "Living Alone", "Not Living Alone", "Zip_Code" )
 
+<<<<<<< HEAD
 ############################################################################
 #=======
+=======
+# gather data
+households <- households%>%gather(key = householdType, value = total, -Zip_Code)
+
+households$FamNonFam <- NA
+
+# classify family type as family or not family
+households$FamNonFam[households$householdType %in% 
+                       c("Married", "Male Householder", "Female Householder")] <- "Family"
+                        
+households$FamNonFam[!households$householdType %in% 
+                       c("Married", "Male Householder", "Female Householder")] <- "NonFamily"
+# omit na
+households <- na.omit(households)
+
+# summarize
+householdsAggregate <- households%>%group_by(Zip_Code, householdType, FamNonFam)%>%
+  summarise(totals = sum(total))
+
+# summarize household type
+householdsFamily <- households%>%group_by(Zip_Code, FamNonFam)%>%summarise(Total = sum(total))
+
+# generate donut chart code
+Totals <- householdsFamily%>%group_by(Zip_Code)%>%summarise(Totals = sum(Total))
+
+householdsFamily <- left_join(householdsFamily, Totals, by = "Zip_Code")
+
+householdsFamily <- householdsFamily%>%mutate(percent = Total/Totals)
+
+ymaxs <- householdsFamily%>% group_by(Zip_Code)%>%summarise(ymax = cumsum(percent)) 
+
+householdsFamily <- cbind(householdsFamily, ymax=ymaxs$ymax)
+
+ymins <- householdsFamily%>%group_by(Zip_Code)%>%summarise(ymin = c(0, head(ymax, n=-1)))
+
+householdsFamily <- cbind(householdsFamily, ymin = ymins$ymin)
+
+householdsFamily$labelPositions <- (householdsFamily$ymax + householdsFamily$ymin)/2
+
+householdsFamily$label <- paste0(householdsFamily$FamNonFam, "\n", round(householdsFamily$percent*100), "%")
+
+############################################################################
+
+>>>>>>> d3f89942555751c52063691f93c33a8492fb8a0b
 
 ### Dana
 
@@ -144,6 +198,7 @@ abandoned_spatial$popup <- paste('<b>', abandoned_spatial$Property_S, "</b><br>"
                                  "Structure Type: ", abandoned_spatial$Structures, sep="")
 
 
+<<<<<<< HEAD
 # Subset data for gender
 census_fm <- census_data %>% select(SE_T003_01, SE_T003_02, geometry)
 
@@ -153,6 +208,11 @@ pop_fm_by_zip <- get_zipcode(census_fm, 3857) %>%
   st_set_geometry(NULL) %>% 
   group_by(Zip_Code) %>% 
   summarise(across(.cols = starts_with("SE"), .fns = sum))
+=======
+# Subset census data for age and gender only 
+census_age_fm <- census_data %>% 
+    select(SE_T003_01, SE_T003_02, starts_with("SE_T008"), -SE_T008_00, geometry)
+>>>>>>> d3f89942555751c52063691f93c33a8492fb8a0b
 
 colnames(pop_fm_by_zip) <- c("zipcode", "male", "female")
 
@@ -236,12 +296,26 @@ header <- dashboardHeader(
   title = "Dashboard"
 ) # end header
 
-
 filter_s <- selectInput(inputId = "zipcode", 
+<<<<<<< HEAD
                         label = "Choose a Zip Code",
                         choices = business_spatial$Zip_Code, 
                         selected = 46617
                         ) # filter string
+=======
+
+                        label = "ZipCode to Choose",
+                        choices = unique(c(unique(park_data$Zip_Code), 
+                                           unique(business_spatial$Zip_Code), 
+                                           unique(abandoned_spatial$Zip_Code),
+                                           unique(school_data$Zip_Code),
+                                           unique(popAggregate$Zip_Code),
+                                           unique(householdsAggregate$Zip_Code),
+                                           unique(householdsFamily$Zip_Code))), 
+                        selected=46617,
+
+) # filter string
+>>>>>>> d3f89942555751c52063691f93c33a8492fb8a0b
 
 
 sidebar <- dashboardSidebar(
@@ -275,6 +349,7 @@ body <- dashboardBody(
     
     #### EDITH ##################
     
+<<<<<<< HEAD
 
     # tabItem("schools",
     #         fluidRow(
@@ -313,8 +388,53 @@ body <- dashboardBody(
     #     ),# end tabItem
     #                  
 
+=======
+    tabItem("schools",
+            fluidRow(
+            box( height = 515, 
+                 title = "Schools and Parks",
+                 status = "primary",
+                 leafletOutput(outputId = "map"),
+                ), # end box
+            
+            box(height = 175,
+              selectInput(inputId = "stype",
+                          label = "Select School Type:",
+                          choices = c("Private", "Public")),
+              
+              selectInput(inputId = "ptype",
+                          label = "Select Park Type:",
+                          choices = types)
+              ),
+            
+            tabBox(height  = 300,
+                   tabPanel("Family Type",
+                             plotOutput(outputId = "donut", height = 250)
+                   )
+              )
+            
+            ),
+              
+            fluidRow(
+              
+              tabBox(height = 455,
+                     tabPanel("Ethnicity Distribution",
+                              plotOutput(outputId = "barTwo", height = 400)
+                     )
+              ),
+              
+              tabBox(
+                height = 455,
+                tabPanel("Household Distribution",
+                         plotOutput(outputId = "barOne", height = 400)
+                )
+              )
+            )
+            
+        ),# end tabItem
+                     
+>>>>>>> d3f89942555751c52063691f93c33a8492fb8a0b
     # End parks and schools tab item Edith
-
 
     #### DANA ##################
     
@@ -411,8 +531,6 @@ body <- dashboardBody(
               )
             )
     ) # end tab item temps
-    
-    
   )
 )
 
@@ -448,9 +566,18 @@ server <- function(input, output, session) {
      
     })
     
-    zip <- eventReactive(input$zipcode, {
-           return(popAgregate%>%filter(Zip_Code == input$zipcode))
+    zipOne <- eventReactive(input$zipcode, {
+           return(popAggregate%>%filter(Zip_Code == input$zipcode))
            
+    })
+    
+    zipTwo <- eventReactive(input$zipcode, {
+      return(householdsAggregate%>%filter(Zip_Code == input$zipcode))
+      
+    })
+    
+    zipThree <- eventReactive(input$zipcode, {
+      return(householdsFamily%>%filter(Zip_Code == input$zipcode))
     })
     
     # output the school type and park type
@@ -461,21 +588,50 @@ server <- function(input, output, session) {
                 addMarkers(data = dataParks(), popup = ~popup)
     })
   
-    output$distPie <- renderPlot({
-                      zip()%>% 
-                      ggplot(aes(fct_reorder(Race, percent), percent)) + 
-                      geom_bar(stat = "identity", fill = "#f68060", alpha = 0.6) + 
-                      theme(panel.background = element_blank()) + 
-                      theme(axis.line.x = element_line(colour = "black")) +
-                      theme(axis.line.y = element_line(colour = "black")) +
-                      xlab("") +
-                      coord_flip()
+    output$barOne <- renderPlot({
+                     zipTwo()%>% 
+                     ggplot(aes(fct_reorder(householdType, totals), totals, fill = FamNonFam)) + 
+                     geom_bar(stat = "identity") + 
+                     theme(panel.background = element_blank()) + 
+                     theme(axis.line.y = element_line(colour = "black")) +
+                     scale_fill_brewer(palette = "Pastel1") +
+                     geom_text(aes(label = totals, vjust = -.2, hjust = "center"), 
+                               position = position_dodge(0.90), angle = -90)+
+                     theme(axis.text.x = element_blank()) +
+                     theme(axis.ticks.x = element_blank()) +
+                     xlab("") +
+                     ylab("") +
+                     theme(legend.position  = "none")+
+                     coord_flip()
     })
     
-   # park_zip <- reactive({
-    #            park_data %>% filter(Zip_Code %in% input$zipcode)
-    #})
+    output$barTwo <- renderPlot({
+                     zipOne()%>% 
+                     ggplot(aes(fct_reorder(Race, percent), percent)) + 
+                     geom_bar(stat = "identity", fill = "#f0c188", alpha = 0.6) + 
+                     theme(panel.background = element_blank()) + 
+                     theme(axis.line.y = element_line(colour = "black")) +
+                     geom_text(aes(label = paste0(percent,"%"), vjust = -.2, hjust = "center"), 
+                     position = position_dodge(0.90), angle = -90)+
+                     theme(axis.text.x = element_blank()) +
+                     theme(axis.ticks.x = element_blank()) +
+                     xlab("") +
+                     ylab("") +
+                     coord_flip()
+    })
 
+    output$donut <- renderPlot({
+                      zipThree()%>%ggplot(aes(ymax=ymax, ymin=ymin, xmax=10, xmin=2, fill=FamNonFam)) +
+                      geom_rect() +
+                      geom_label(x=5, aes(y=labelPositions, 
+                                          label=label), size=4, color = "white") +
+                      scale_fill_brewer(palette = "Pastel1") +
+                      coord_polar(theta = "y") +
+                      xlim(c(-10, 10)) +
+                      theme_void()+
+                      theme(legend.position = "none")
+     })
+    
   #######################################################################
   
   ## Dana
@@ -669,9 +825,6 @@ server <- function(input, output, session) {
       
     })# end gender_plot_or_warning
     
-  
-  
-
   
   ######################################################################
   ## Ankur
