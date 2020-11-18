@@ -515,7 +515,7 @@ server <- function(input, output, session) {
     output$barTwo <- renderPlot({
                      zipOne()%>% 
                      ggplot(aes(fct_reorder(Race, percent), percent)) + 
-                     geom_bar(stat = "identity", fill = "#f0c188", alpha = 0.6) + 
+                     geom_bar(stat = "identity", fill = "#CCEBC5", alpha = 0.6) + 
                      theme(panel.background = element_blank()) + 
                      theme(axis.line.y = element_line(colour = "black")) +
                      geom_text(aes(label = paste0(percent,"%"), vjust = -.2, hjust = "center"), 
