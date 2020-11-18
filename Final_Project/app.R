@@ -11,8 +11,9 @@ library(sf)
 library(ggmap)
 library(magrittr)
 library(tidyverse)
-library(stm)
 library(forcats)
+library(plotly)
+library(RColorBrewer)
 
 skin <- Sys.getenv("DASHBOARD_SKIN")
 skin <- tolower(skin)
@@ -23,6 +24,9 @@ if (skin == "")
 
 # Load school data
 school_data <- st_read("School_Boundaries.shp")
+
+# Load census data
+census_data <- st_read("2010_CensusData.shp")
 
 zip_code <- st_read("SJCZipCodes_clip.shp")
 
@@ -59,8 +63,7 @@ park_data$popup <- paste("<b>", park_data$Park_Name, "</b><br>",
                          "Address: ",park_data$Address, "<br>")
 
 types <- c(unique(park_data$Park_Type))
-# Load census data
-census_data <- st_read("2010_CensusData.shp")
+
 
 # get population type data
 population <- census_data %>% select(starts_with("SE_T054",), geometry)
@@ -85,14 +88,17 @@ population <- gather(population, key= "Race", value = "RaceTotal", -c(Total, Zip
 popAggregate <- population%>%group_by(Zip_Code, Race) %>%
                summarise(Total = sum(RaceTotal))
 
-# find total for all groups 
+# find total for all groups
 totals <- popAggregate %>% group_by(Zip_Code) %>%summarise(Totals = sum(Total))
 
 # include total column on original data
 popAggregate <- left_join(popAggregate, totals, by = "Zip_Code")
 
-# calculate percent of each race 
+# calculate percent of each race
+popAgregate <- popAgregate%>%mutate(percent = round(Total/Totals*100))
+
 popAggregate <- popAggregate%>%mutate(percent = round(Total/Totals*100))
+
 
 # select data for households
 households <- census_data%>%select(starts_with("SE_T058"), geometry)
@@ -102,7 +108,7 @@ households <- get_zipcode(households, 4326)
 households <- st_drop_geometry(households)
 
 # exclude totals per main household type
-households <- households%>%select(-c("SE_T058_00", "SE_T058_06", 
+households <- households%>%select(-c("SE_T058_00", "SE_T058_06",
                                      "SE_T058_01", "SE_T058_03"))
 # set names for new columns
 names(households) <- c("Married", "Male Householder", "Female Householder",
@@ -114,10 +120,10 @@ households <- households%>%gather(key = householdType, value = total, -Zip_Code)
 households$FamNonFam <- NA
 
 # classify family type as family or not family
-households$FamNonFam[households$householdType %in% 
+households$FamNonFam[households$householdType %in%
                        c("Married", "Male Householder", "Female Householder")] <- "Family"
-                        
-households$FamNonFam[!households$householdType %in% 
+
+households$FamNonFam[!households$householdType %in%
                        c("Married", "Male Householder", "Female Householder")] <- "NonFamily"
 # omit na
 households <- na.omit(households)
@@ -136,7 +142,7 @@ householdsFamily <- left_join(householdsFamily, Totals, by = "Zip_Code")
 
 householdsFamily <- householdsFamily%>%mutate(percent = Total/Totals)
 
-ymaxs <- householdsFamily%>% group_by(Zip_Code)%>%summarise(ymax = cumsum(percent)) 
+ymaxs <- householdsFamily%>% group_by(Zip_Code)%>%summarise(ymax = cumsum(percent))
 
 householdsFamily <- cbind(householdsFamily, ymax=ymaxs$ymax)
 
@@ -150,7 +156,6 @@ householdsFamily$label <- paste0(householdsFamily$FamNonFam, "\n", round(househo
 
 ############################################################################
 
-
 ### Dana
 
 # Load in Abandoned Properties
@@ -160,12 +165,12 @@ abandoned_spatial <- st_read("Abandoned_Property_Parcels.shp")
 business_points <- read.csv("Business_Licenses_geocoded.csv", stringsAsFactors = F) %>% 
   filter(State == "IN")# Filter out businesses that are physically in South Bend IN only
 
-    ### Convert bussiness to spatial data
+# Convert bussiness to spatial data
 business_spatial <- business_points %>% 
   st_as_sf(coords = c("X","Y")) %>% 
-  st_set_crs(value = st_crs(abandoned_spatial))
+  st_set_crs(value = st_crs(4326))
 
-    ### Clean up zip_code. Add "-" in between zip code
+# Clean up zip_code. Remove the last 4 digits of codes that have 9 digits
 business_spatial$Zip_Code <- as.character(business_spatial$Zip_Code) %>%
   gsub('^([0-9]{5})([0-9]+)$', '\\1', .) %>% as.integer(.)
 
@@ -173,12 +178,7 @@ business_spatial$Zip_Code <- as.character(business_spatial$Zip_Code) %>%
 abandoned_spatial$Zip_Code <- as.character(abandoned_spatial$Zip_Code) %>% 
   gsub('^([0-9]{5})([0-9]+)$', '\\1', .) %>% as.integer(.)
 
-    ### Remove geometry data from the business and abandoned df
-business_nogeo <- business_spatial %>% st_set_geometry(NULL)
-
-abandoned_nogeo <- abandoned_spatial %>% st_set_geometry(NULL)
-
-    ### Create pop-up
+# Create pop-up
 business_spatial$popup <- paste("<b>", business_spatial$Business_N, "</b><br>",
                                 "Type: ", business_spatial$Classifi_1, sep="") 
 
@@ -186,46 +186,46 @@ abandoned_spatial$popup <- paste('<b>', abandoned_spatial$Property_S, "</b><br>"
                                  "Structure Type: ", abandoned_spatial$Structures, sep="")
 
 
+
+# Subset data for gender
+census_fm <- census_data %>% select(SE_T003_01, SE_T003_02, geometry)
+
+# Get zip codes for gender data
+# Groupby zip and summarize total gender data by zip 
+pop_fm_by_zip <- get_zipcode(census_fm, 3857) %>% 
+  st_set_geometry(NULL) %>% 
+  group_by(Zip_Code) %>% 
+  summarise(across(.cols = starts_with("SE"), .fns = sum))
+
 # Subset census data for age and gender only 
 census_age_fm <- census_data %>% 
     select(SE_T003_01, SE_T003_02, starts_with("SE_T008"), -SE_T008_00, geometry)
 
-    ### Joining census data and zip_code together
-google.crs <- 3857
 
-    ### Transform crs 
-zip_code_google <- zip_code %>% st_transform(crs = google.crs)
+colnames(pop_fm_by_zip) <- c("zipcode", "male", "female")
 
-# st_crs(zip_code_google)
-census_data_google <- census_age_fm %>% st_transform((crs=google.crs))
-
-# st_crs(census_data_google)
-
-    ### Join zip_codes onto census_age_fm
-ov <- st_join(x = census_data_google, y = zip_code_google %>% select(ZCTA5))
-
-    ### Total age range and gender population by zip-code
-pop_by_zip <- ov %>% 
-    st_set_geometry(NULL) %>% 
-    group_by(ZCTA5) %>% 
-    summarise(across(.cols = starts_with("SE"), .fns = sum))
-
-colnames(pop_by_zip) <- c("zipcode", "male", "female", "under_5", "5-9",
-                          "10-14","15-17", "18-24", "25-34", "35-44","45-54",
-                          "55-64", "65-74", "75-84", "over_84")
-
-    ### Create dataframes for gender and age separately 
-pop_fm_by_zip <- pop_by_zip %>% select(zipcode, male, female)
-pop_age_by_zip <- pop_by_zip %>% select(-male, -female)
-
-    ### Tidy pop data
-    # Gender data
+# Tidy gender data
 pop_fm_tidy <- gather(pop_fm_by_zip, 
                       key = "gender", 
                       value = "population",
                       -zipcode)
 
-    # Age data
+
+# Subset data for age
+census_age <- census_data %>% select(starts_with("SE_T008"), -SE_T008_00, geometry)
+
+# Get zip codes for age data
+# Groupby zip and summarize total age data by zip 
+pop_age_by_zip <- get_zipcode(census_age, 3857) %>% 
+  st_set_geometry(NULL) %>% 
+  group_by(Zip_Code) %>% 
+  summarise(across(.cols = starts_with("SE"), .fns = sum))
+
+colnames(pop_age_by_zip) <- c("zipcode", "under_5", "5-9",
+                          "10-14","15-17", "18-24", "25-34", "35-44","45-54",
+                          "55-64", "65-74", "75-84", "over_84")
+
+# Tidy age data
 pop_age_tidy <- gather(pop_age_by_zip,
                        key = "age_range",
                        value="population",
@@ -235,13 +235,9 @@ age_level <- c("under_5", "5-9","10-14","15-17", "18-24", "25-34",
                "35-44","45-54","55-64", "65-74", "75-84", "over_84")
 
 pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
-                
 
-#### NEED TO CREATE A LIST OF UNIQUE ZIP CODES FOR SCHOOLS, PARKS, BUSINESS AND ABANDONED LOTS 
 
-zipcode_list = c(park_data$Zip_Code, business_spatial$Zip_Code, abandoned_spatial$Zip_Code) # Edith to add school_data$Zip_Code
 
-unique_zip = unique(zipcode_list)
 
 ############################################################################
 
@@ -252,18 +248,19 @@ header <- dashboardHeader(
 ) # end header
 
 filter_s <- selectInput(inputId = "zipcode", 
-
-                        label = "ZipCode to Choose",
-                        choices = unique(c(unique(park_data$Zip_Code), 
-                                           unique(business_spatial$Zip_Code), 
-                                           unique(abandoned_spatial$Zip_Code),
-                                           unique(school_data$Zip_Code),
-                                           unique(popAggregate$Zip_Code),
-                                           unique(householdsAggregate$Zip_Code),
-                                           unique(householdsFamily$Zip_Code))), 
-                        selected=46617,
+                        label = "Choose Zip Code",
+                        #choices = business_spatial$Zip_Code,
+                         choices = sort(unique(c(unique(park_data$Zip_Code), 
+                                            unique(business_spatial$Zip_Code), 
+                                            unique(abandoned_spatial$Zip_Code),
+                                            unique(school_data$Zip_Code),
+                                            unique(popAggregate$Zip_Code),
+                                            unique(householdsAggregate$Zip_Code),
+                                            unique(householdsFamily$Zip_Code)))), 
+                        selected=46617
 
 ) # filter string
+
 
 
 sidebar <- dashboardSidebar(
@@ -293,71 +290,86 @@ body <- dashboardBody(
   tabItems(
     # Use the template from here for anything you want to add !!
     
-    
-    
     #### EDITH ##################
-    
+
     tabItem("schools",
             fluidRow(
-            box( height = 515, 
+              
+            # create map box  
+            box( height = 515,
                  title = "Schools and Parks",
                  status = "primary",
                  leafletOutput(outputId = "map"),
                 ), # end box
             
+            # create selection box
             box(height = 175,
+              # create school type selection  
               selectInput(inputId = "stype",
                           label = "Select School Type:",
                           choices = c("Private", "Public")),
               
+              # create park type selection
               selectInput(inputId = "ptype",
                           label = "Select Park Type:",
                           choices = types)
               ),
-            
+            # create donut chart box
             tabBox(height  = 300,
                    tabPanel("Family Type",
                              plotOutput(outputId = "donut", height = 250)
                    )
               )
-            
+
             ),
-              
+            
             fluidRow(
-              
+              # create ethnicity distribution box
               tabBox(height = 455,
                      tabPanel("Ethnicity Distribution",
-                              plotOutput(outputId = "barTwo", height = 400)
+                              plotOutput(outputId = "barOne", height = 400)
                      )
               ),
-              
+              # create household distribution box
               tabBox(
                 height = 455,
                 tabPanel("Household Distribution",
-                         plotOutput(outputId = "barOne", height = 400)
+                         plotOutput(outputId = "barTwo", height = 400)
                 )
               )
             )
-            
+
         ),# end tabItem
                      
+
     # End parks and schools tab item Edith
 
     #### DANA ##################
     
     tabItem("business",
             fluidRow(
+              box(width = 2, 
+                selectInput(inputId = "bus_type",
+                            label = "Choose Business Type",
+                            choices = c("All" = 'all', "Restaurant/Food Services" = "resto", 
+                                        "Parking" = 'parking', "Massage/Tatoo Parlors" = 'massage',
+                                        "Outdoor Venues" = 'outdoor', "Pet" = 'pet', 
+                                        "Non-profit" = 'donation', "Others" = 'other'),
+                            selected = "all")
+                  ), # end box
+              
               box(
-                title = "Map", width = 12,
+                title = "Map", solidHeader = T, width = 10,
                 status = "primary",
                 leafletOutput(outputId = "bus_map")
                 
                  )  # end box
+              
               ), # end fluidRow 1
             
             fluidRow(
               box(
-                title = "Age Distribution", solidHeader = T, width = 6,
+                title = "Population Distribution by Age Range", solidHeader = T, width = 6,
                 radioButtons(inputId = "age_choice", label = "",
                              choices = c("Population Value" = "pop" , "Population Percentage" = "prop" ),
                              selected = "pop"),
@@ -365,12 +377,13 @@ body <- dashboardBody(
                 ), # end box
               
               box(
-                title = "Gender Distribution", solidHeader = T, width = 6,
+                title = "Population Distribution by Gender", solidHeader = T, width = 6,
                 radioButtons(inputId = "fm_choice", label = "",
                              choices = c("Population Value" = "pop", "Population Percentage" = 'prop'),
                              selected = "pop"),
                 uiOutput(outputId = 'gender_plot_or_warning')
               )# end box
+              
             ) # end fluidRow 2
             
     ), # End business tab item Dana
@@ -449,44 +462,44 @@ ui <- shinyUI(
   
 )
 
-server <- function(input, output, session) {
+server <- function(input, output) {
   ## Edith
-#<<<<<<< HEAD
   
-    # filter data based on park type selection
-    
-    zipSchool <- eventReactive(input$zipcode,{
-      return(school_data[school_data$Zip_Code == input$zipcode,])
+    # return school data based on inputs
+    dataSchool <- eventReactive(list(input$zipcode, input$stype), {
+               return(school_data%>%
+                        filter(school_data$Zip_Code==input$zipcode, 
+                               school_data$SchoolType==input$stype))
     })
     
-    # filter data based on school type selection
-    #dataSchool <- eventReactive(input$stype, {
-    #  return(zipSchool()%>%filter(SchoolType == input$stype))
-    #})
-    
-    zipParks <- eventReactive(input$zipcode, {
-      return(park_data[park_data$Zip_Code == input$zipcode,])
-    })
-    
-    dataParks <- eventReactive(input$ptype, {
-      return(zipParks()%>%filter(Park_Type == input$ptype))
-     
-    })
-    
-    zipOne <- eventReactive(input$zipcode, {
-           return(popAggregate%>%filter(Zip_Code == input$zipcode))
-           
-    })
-    
-    zipTwo <- eventReactive(input$zipcode, {
-      return(householdsAggregate%>%filter(Zip_Code == input$zipcode))
+    # return park data based on inputs
+    dataParks <- eventReactive(c(input$zipcode, input$ptype),{
+                  return(park_data%>%
+                         filter(park_data$Zip_Code == input$zipcode, 
+                                park_data$Park_Type == input$ptype))
       
     })
     
-    zipThree <- eventReactive(input$zipcode, {
-      return(householdsFamily%>%filter(Zip_Code == input$zipcode))
+    # return population data based on inputs
+    zipOne <- eventReactive(input$zipcode, {
+           return(popAggregate%>%
+                    filter(Zip_Code == input$zipcode))
+
     })
     
+    # return household data based on input
+    zipTwo <- eventReactive(input$zipcode, {
+      return(householdsAggregate%>%
+               filter(Zip_Code == input$zipcode))
+
+    })
+
+    # return household data based on input
+    zipThree <- eventReactive(input$zipcode, {
+      return(householdsFamily%>%
+               filter(Zip_Code == input$zipcode))
+    })
+
     # output the school type and park type
     output$map <- renderLeaflet({
                 leaflet() %>%
@@ -494,44 +507,49 @@ server <- function(input, output, session) {
                 addPolygons(data = dataSchool(), popup = ~popup) %>%
                 addMarkers(data = dataParks(), popup = ~popup)
     })
-  
-    output$barOne <- renderPlot({
-                     zipTwo()%>% 
-                     ggplot(aes(fct_reorder(householdType, totals), totals, fill = FamNonFam)) + 
-                     geom_bar(stat = "identity") + 
-                     theme(panel.background = element_blank()) + 
+    
+    # plot household distribution
+    output$barTwo <- renderPlot({
+                     zipTwo()%>%
+                     ggplot(aes(fct_reorder(householdType, totals), totals, fill = FamNonFam)) +
+                     geom_bar(stat = "identity") +
+                     theme(panel.background = element_blank()) +
                      theme(axis.line.y = element_line(colour = "black")) +
                      scale_fill_brewer(palette = "Pastel1") +
-                     geom_text(aes(label = totals, vjust = -.2, hjust = "center"), 
+                     geom_text(aes(label = totals, vjust = -.2, hjust = "center"),
                                position = position_dodge(0.90), angle = -90)+
                      theme(axis.text.x = element_blank()) +
                      theme(axis.ticks.x = element_blank()) +
+                     theme(text = element_text(size=15)) +
                      xlab("") +
                      ylab("") +
                      theme(legend.position  = "none")+
                      coord_flip()
     })
     
-    output$barTwo <- renderPlot({
-                     zipOne()%>% 
-                     ggplot(aes(fct_reorder(Race, percent), percent)) + 
-                     geom_bar(stat = "identity", fill = "#CCEBC5", alpha = 0.6) + 
-                     theme(panel.background = element_blank()) + 
+    # plot ethnicity distribution
+    output$barOne <- renderPlot({
+                     zipOne()%>%
+                     ggplot(aes(fct_reorder(Race, percent), percent)) +
+                     geom_bar(stat = "identity", fill = "#CCEBC5", alpha = 0.6) +
+                     theme(panel.background = element_blank()) +
                      theme(axis.line.y = element_line(colour = "black")) +
-                     geom_text(aes(label = paste0(percent,"%"), vjust = -.2, hjust = "center"), 
+                     geom_text(aes(label = paste0(percent,"%"), vjust = -.2, hjust = "center"),
                      position = position_dodge(0.90), angle = -90)+
                      theme(axis.text.x = element_blank()) +
                      theme(axis.ticks.x = element_blank()) +
+                     theme(text = element_text(size=15)) +
                      xlab("") +
                      ylab("") +
-                     coord_flip()
+                     coord_flip() 
     })
-
+    
+    # create donut chart
     output$donut <- renderPlot({
                       zipThree()%>%ggplot(aes(ymax=ymax, ymin=ymin, xmax=10, xmin=2, fill=FamNonFam)) +
                       geom_rect() +
-                      geom_label(x=5, aes(y=labelPositions, 
-                                          label=label), size=4, color = "white") +
+                      geom_label(x=5, aes(y=labelPositions,
+                                          label=label), size=5, color = "white") +
                       scale_fill_brewer(palette = "Pastel1") +
                       coord_polar(theta = "y") +
                       xlim(c(-10, 10)) +
@@ -553,6 +571,32 @@ server <- function(input, output, session) {
                      abandoned_spatial %>% filter(Zip_Code == input$zipcode)
   })
   
+  business_filter <- reactive({
+    switch(input$bus_type,
+           
+           all = business_zip(),
+           
+           resto = business_zip() %>% filter(str_detect(str_to_lower(Classifi_1), "resta.*|food.*")),
+           
+           parking = business_zip() %>% filter(str_detect(str_to_lower(Classifi_1), ".*park.*")),
+           
+           massage = business_zip() %>% filter(str_detect(str_to_lower(Classifi_1), ".*massage.*|.*tatoo.*")),
+           
+           outdoor = business_zip() %>% filter(str_detect(str_to_lower(Classifi_1), ".*open.*|.*outdoor.*")),
+           
+           pet = business_zip() %>% filter(str_detect(str_to_lower(Classifi_1), ".*pet.*")),
+           
+           donation = business_zip() %>% filter(str_detect(str_to_lower(Classifi_1), ".*charitable.*|.*donation.*")),
+           
+           other = business_zip() %>% 
+             filter(str_detect(str_to_lower(Classifi_1), 
+                                 "resta.*|food.*|.*park.*|.*massage.*|
+                                 .*tatoo.*|.*open.*|.*outdoor.*|.*pet.*|
+                                 .*charitable.*|.*donation.*", 
+                                negate = T))
+          ) #end switch
+  })
+  
   # Create map
   output$bus_map <- renderLeaflet({
      leaflet() %>% 
@@ -563,17 +607,18 @@ server <- function(input, output, session) {
       addProviderTiles(providers$CartoDB.Positron)  %>% 
       
       # Add markers for business
-      addCircleMarkers(data = business_zip(),
+      addCircleMarkers(data = business_filter(),#business_zip(),
                        popup = ~popup,
                        stroke = F,
                        fillOpacity = 0.8,
-                       radius=3,
+                       color = "#1975d1",
+                       radius= 3.2,
                        group = "Business") %>%
       
       # Add legend for business
-      addLegend(data = business_zip(),
+      addLegend(data = business_filter(),#business_zip(),
                 labels = "Businesess",
-                colors = 'steelblue',
+                colors = '#1975d1',
                 opacity = 1,
                 group = "Business") %>%
       
@@ -613,25 +658,35 @@ server <- function(input, output, session) {
     age_graph <- reactive({
       switch(input$age_choice,
              
-             pop = ggplot(age_zip(), aes(x = age_range, y = population)) +
-                      labs(x = "Age Range", y = "Population"), 
-            
-             prop = ggplot(age_zip(), aes(x = age_range, y = prop)) +
-                      labs(x = "Age Range", y = "Population %")
+             pop = plot_ly(age_zip(), x = ~age_range, y = ~population, type = 'bar', color = I("#9999CC"),
+                       text = ~paste("Age Range:", age_range, "<br>","Population:",population),
+                       hoverinfo = 'text') %>%  
+               layout(yaxis=list(title = "Population")), 
                     
+             
+             prop = plot_ly(age_zip(), x = ~age_range, y = ~prop, type = 'bar', color = I("#9999CC"),
+                            text = ~paste("Age Range:", age_range, "<br>","Percentage:",prop, "%"),
+                            hoverinfo = 'text') %>%  
+               layout(yaxis=list(title = "Population (%)"))
+                     
       ) # end switch
       
     }) # end age_graph
     
     ## Display age plot or warning
-    output$age_plot <- renderPlot({
-      age_graph() +
-        geom_col(fill = "#9999CC") +
-        theme_minimal() +
-        theme(axis.text.x = element_text(size = 12),
-              axis.title.x = element_text(size = 18),
-              axis.text.y = element_text(size = 12),
-              axis.title.y = element_text(size = 18))
+    output$age_plot <- renderPlotly({
+      age_graph() %>% layout(yaxis=list(titlefont = list(size = 13,
+                                                         color ="#9999CC"),
+                                        tickfont = list (size = 12,
+                                                         color = "#9999CC"),
+                                        showgrid = T),
+                             xaxis= list(title = "Age",
+                                         titlefont = list(size = 13,
+                                                          color ="#9999CC"),
+                                         tickfont = list (size = 12,
+                                                          color = "#9999CC")),
+                             bargap = 0.3)  #+
+     
       }) # end age_plot
     
     output$age_warning <- renderText({
@@ -641,7 +696,7 @@ server <- function(input, output, session) {
     output$age_plot_or_warning <- renderUI({
       
       if(input$zipcode %in% pop_age_tidy$zipcode) {
-        plotOutput("age_plot")
+        plotlyOutput("age_plot", height = 365)
         
       }
       else{
@@ -656,39 +711,44 @@ server <- function(input, output, session) {
     fm_zip <- reactive({
 
       fm_filter <- pop_fm_tidy %>%
-        filter(zipcode == input$zipcode) %>%
-        mutate(prop = round(population/sum(.$population) * 100, 1))
-
-      fm_filter$ypos_prop <- c(80,20)
+        filter(zipcode == input$zipcode) #%>%
+      #   mutate(prop = round(population/sum(.$population) * 100, 1))
+      # 
+      # fm_filter$ypos_prop <- c(80,20)
 
       return(fm_filter)
     }) # end fm_zip
 
     ## Switch between population and proportion
-    gender_graph <- reactive({
+    value_choice <- reactive({
       switch(input$fm_choice,
              
-             pop = ggplot(fm_zip(), aes(x = "", y = population, fill = gender)) +
-                     geom_col(width = 1, color = "white") +
-                     ggrepel::geom_text_repel(aes(label = population), color = "navy", size = 6),
-                     
-
-             prop =  ggplot(fm_zip(), aes(x = "", y = prop, fill = gender)) +
-                     geom_col(width = 1, color = "white") +
-                     geom_text(aes(y = ypos_prop, label = paste0(prop, "%")), color = "navy", size = 6) 
-                     
-             
+             pop = "label+value",
+             prop = "label+percent"
+            
       ) # end switch
     }) # end gender_graph
     
     ## Display gender plot or warning 
     
-    output$gender_plot <- renderPlot({
-      gender_graph() + 
-        coord_polar("y", start = 0) +
-        scale_fill_brewer(palette = "Pastel2") +
-        theme_void() +
-        theme(legend.text = element_text(size = 15), legend.title = element_text(face = 'bold', size = 25))
+    output$gender_plot <- renderPlotly({
+      
+      plot_ly(fm_zip(), labels = ~gender, values = ~population, type = "pie",
+                        textposition = "inside",
+                        textinfo = value_choice(),
+                        insidetextfont = list(color = '#FFFFFF', size = 15),
+                        hoverinfo = "skip",
+                        marker = list(colors = c("#b7ebab","#ebc8ab"),
+                                      line = list(color = '#FFFFFF', width = 1.5)),
+                                      showlegend = F) %>% 
+        
+        layout(yaxis=list(showgrid = F,
+                          zeroline = F,
+                          showticklabels = F),
+              xaxis= list(showgrid = F,
+              zeroline = F,
+             showticklabels = F))
+      
       }) # end gender_plot
     
     output$gender_warning <- renderText({
@@ -698,7 +758,7 @@ server <- function(input, output, session) {
     output$gender_plot_or_warning <- renderUI({
       
       if(input$zipcode %in% pop_fm_tidy$zipcode) {
-        plotOutput("gender_plot")
+        plotlyOutput("gender_plot", height = 365)
       }
       else{
         textOutput("gender_warning")
@@ -749,7 +809,6 @@ server <- function(input, output, session) {
 
   
 } # end server
-
 
 # Run the application 
 shinyApp(ui = ui, server = server)
