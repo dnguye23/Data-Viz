@@ -46,6 +46,7 @@ get_zipcode <- function(df, crs) {
               return(zip_data)
 }
 
+
 # get zip code for school data
 school_data <- get_zipcode(school_data, 4326)
 
@@ -95,7 +96,9 @@ totals <- popAggregate %>% group_by(Zip_Code) %>%summarise(Totals = sum(Total))
 popAggregate <- left_join(popAggregate, totals, by = "Zip_Code")
 
 # calculate percent of each race
+
 popAgregate <- popAgregate%>%mutate(percent = round(Total/Totals*100))
+
 
 popAggregate <- popAggregate%>%mutate(percent = round(Total/Totals*100))
 
@@ -197,11 +200,6 @@ pop_fm_by_zip <- get_zipcode(census_fm, 3857) %>%
   group_by(Zip_Code) %>% 
   summarise(across(.cols = starts_with("SE"), .fns = sum))
 
-# Subset census data for age and gender only 
-census_age_fm <- census_data %>% 
-    select(SE_T003_01, SE_T003_02, starts_with("SE_T008"), -SE_T008_00, geometry)
-
-
 colnames(pop_fm_by_zip) <- c("zipcode", "male", "female")
 
 # Tidy gender data
@@ -215,7 +213,7 @@ pop_fm_tidy <- gather(pop_fm_by_zip,
 census_age <- census_data %>% select(starts_with("SE_T008"), -SE_T008_00, geometry)
 
 # Get zip codes for age data
-# Groupby zip and summarize total age data by zip 
+# Group_by zip and summarize total age data by zip 
 pop_age_by_zip <- get_zipcode(census_age, 3857) %>% 
   st_set_geometry(NULL) %>% 
   group_by(Zip_Code) %>% 
@@ -237,8 +235,6 @@ age_level <- c("under_5", "5-9","10-14","15-17", "18-24", "25-34",
 pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
 
 
-
-
 ############################################################################
 
 ### Ankur
@@ -249,6 +245,7 @@ header <- dashboardHeader(
 
 filter_s <- selectInput(inputId = "zipcode", 
                         label = "Choose Zip Code",
+
                         #choices = business_spatial$Zip_Code,
                          choices = sort(unique(c(unique(park_data$Zip_Code), 
                                             unique(business_spatial$Zip_Code), 
@@ -257,20 +254,20 @@ filter_s <- selectInput(inputId = "zipcode",
                                             unique(popAggregate$Zip_Code),
                                             unique(householdsAggregate$Zip_Code),
                                             unique(householdsFamily$Zip_Code)))), 
+
                         selected=46617
 
-) # filter string
-
+) # filter Zip Code
 
 
 sidebar <- dashboardSidebar(
   filter_s,
   sidebarMenu(
     menuItem("Parks and Schools", tabName = "schools", icon = icon("map")
-    ), #end menuItem Parks and School - Dana
+    ), #end menuItem Parks and School - Edith
     
     menuItem("Businesses", icon = icon("th"), tabName = "business"
-    ), #end menuItem Businesses - Edith
+    ), #end menuItem Businesses - Dana
     
     menuItem("Summary Data", icon = icon("table"),
              menuSubItem("Parks", tabName = "park_table"),
@@ -340,7 +337,7 @@ body <- dashboardBody(
             )
 
         ),# end tabItem
-                     
+
 
     # End parks and schools tab item Edith
 
@@ -349,7 +346,7 @@ body <- dashboardBody(
     tabItem("business",
             fluidRow(
               box(width = 2, 
-                selectInput(inputId = "bus_type",
+                radioButtons(inputId = "bus_type",
                             label = "Choose Business Type",
                             choices = c("All" = 'all', "Restaurant/Food Services" = "resto", 
                                         "Parking" = 'parking', "Massage/Tatoo Parlors" = 'massage',
@@ -371,16 +368,16 @@ body <- dashboardBody(
               box(
                 title = "Population Distribution by Age Range", solidHeader = T, width = 6,
                 radioButtons(inputId = "age_choice", label = "",
-                             choices = c("Population Value" = "pop" , "Population Percentage" = "prop" ),
-                             selected = "pop"),
+                             choices = c("Population Percentage" = "prop", "Population Value" = "pop" ),
+                             selected = "prop"),
                 uiOutput(outputId = "age_plot_or_warning")
                 ), # end box
               
               box(
                 title = "Population Distribution by Gender", solidHeader = T, width = 6,
                 radioButtons(inputId = "fm_choice", label = "",
-                             choices = c("Population Value" = "pop", "Population Percentage" = 'prop'),
-                             selected = "pop"),
+                             choices = c("Population Percentage" = "prop", "Population Value" = "pop"),
+                             selected = "prop"),
                 uiOutput(outputId = 'gender_plot_or_warning')
               )# end box
               
@@ -465,6 +462,7 @@ ui <- shinyUI(
 server <- function(input, output) {
   ## Edith
   
+
     # return school data based on inputs
     dataSchool <- eventReactive(list(input$zipcode, input$stype), {
                return(school_data%>%
@@ -556,7 +554,7 @@ server <- function(input, output) {
                       theme_void()+
                       theme(legend.position = "none")
      })
-    
+
   #######################################################################
   
   ## Dana
@@ -589,11 +587,10 @@ server <- function(input, output) {
            donation = business_zip() %>% filter(str_detect(str_to_lower(Classifi_1), ".*charitable.*|.*donation.*")),
            
            other = business_zip() %>% 
-             filter(str_detect(str_to_lower(Classifi_1), 
-                                 "resta.*|food.*|.*park.*|.*massage.*|
-                                 .*tatoo.*|.*open.*|.*outdoor.*|.*pet.*|
-                                 .*charitable.*|.*donation.*", 
-                                negate = T))
+                  filter(str_detect(str_to_lower(Classifi_1), "resta.*|food.*|.*park.*|.*massage.*|
+                                                              .*tatoo.*|.*open.*|.*outdoor.*|.*pet.*|
+                                                              .*charitable.*|.*donation.*", 
+                                                              negate = T))
           ) #end switch
   })
   
@@ -612,7 +609,7 @@ server <- function(input, output) {
                        stroke = F,
                        fillOpacity = 0.8,
                        color = "#1975d1",
-                       radius= 3.2,
+                       radius= 3.1,
                        group = "Business") %>%
       
       # Add legend for business
@@ -657,17 +654,15 @@ server <- function(input, output) {
     ## Switch between population and proportion 
     age_graph <- reactive({
       switch(input$age_choice,
+             prop = plot_ly(age_zip(), x = ~age_range, y = ~prop, type = 'bar', color = I("#9999CC"),
+                            text = ~paste("Age Range:", age_range, "<br>","Percentage:",prop, "%"),
+                            hoverinfo = 'text') %>%  
+               layout(yaxis=list(title = "Population (%)")),
              
              pop = plot_ly(age_zip(), x = ~age_range, y = ~population, type = 'bar', color = I("#9999CC"),
                        text = ~paste("Age Range:", age_range, "<br>","Population:",population),
                        hoverinfo = 'text') %>%  
-               layout(yaxis=list(title = "Population")), 
-                    
-             
-             prop = plot_ly(age_zip(), x = ~age_range, y = ~prop, type = 'bar', color = I("#9999CC"),
-                            text = ~paste("Age Range:", age_range, "<br>","Percentage:",prop, "%"),
-                            hoverinfo = 'text') %>%  
-               layout(yaxis=list(title = "Population (%)"))
+               layout(yaxis=list(title = "Population")) 
                      
       ) # end switch
       
@@ -676,17 +671,18 @@ server <- function(input, output) {
     ## Display age plot or warning
     output$age_plot <- renderPlotly({
       age_graph() %>% layout(yaxis=list(titlefont = list(size = 13,
-                                                         color ="#9999CC"),
+                                                         color ="navy"),
                                         tickfont = list (size = 12,
-                                                         color = "#9999CC"),
+                                                         color = "navy"),
+                                        gridcolor = "white",
                                         showgrid = T),
                              xaxis= list(title = "Age",
                                          titlefont = list(size = 13,
-                                                          color ="#9999CC"),
+                                                          color ="navy"),
                                          tickfont = list (size = 12,
-                                                          color = "#9999CC")),
-                             bargap = 0.3)  #+
-     
+                                          color = "#9999CC")),
+                             bargap = 0.3)  
+       
       }) # end age_plot
     
     output$age_warning <- renderText({
@@ -711,10 +707,7 @@ server <- function(input, output) {
     fm_zip <- reactive({
 
       fm_filter <- pop_fm_tidy %>%
-        filter(zipcode == input$zipcode) #%>%
-      #   mutate(prop = round(population/sum(.$population) * 100, 1))
-      # 
-      # fm_filter$ypos_prop <- c(80,20)
+        filter(zipcode == input$zipcode) 
 
       return(fm_filter)
     }) # end fm_zip
@@ -722,11 +715,10 @@ server <- function(input, output) {
     ## Switch between population and proportion
     value_choice <- reactive({
       switch(input$fm_choice,
-             
+
              pop = "label+value",
              prop = "label+percent"
-            
-      ) # end switch
+            ) # end switch
     }) # end gender_graph
     
     ## Display gender plot or warning 
@@ -736,7 +728,7 @@ server <- function(input, output) {
       plot_ly(fm_zip(), labels = ~gender, values = ~population, type = "pie",
                         textposition = "inside",
                         textinfo = value_choice(),
-                        insidetextfont = list(color = '#FFFFFF', size = 15),
+                        insidetextfont = list(color = '#1975d1', size = 15),
                         hoverinfo = "skip",
                         marker = list(colors = c("#b7ebab","#ebc8ab"),
                                       line = list(color = '#FFFFFF', width = 1.5)),
