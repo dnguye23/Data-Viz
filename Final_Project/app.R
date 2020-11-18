@@ -32,18 +32,18 @@ zip_code <- st_read("SJCZipCodes_clip.shp")
 
 # Function to get zip code for spatial data
 get_zipcode <- function(df, crs) {
-              
-              google.crs <- crs
-
-              zip_code_google <- zip_code %>% st_transform(crs = google.crs)
-
-              data_google <- df %>% st_transform(crs = google.crs)
-
-              zip_data <- st_join(x = data_google, y = zip_code_google%>%select(ZCTA5))
-
-              zip_data <- zip_data %>% rename(Zip_Code = ZCTA5)
-              
-              return(zip_data)
+  
+  google.crs <- crs
+  
+  zip_code_google <- zip_code %>% st_transform(crs = google.crs)
+  
+  data_google <- df %>% st_transform(crs = google.crs)
+  
+  zip_data <- st_join(x = data_google, y = zip_code_google%>%select(ZCTA5))
+  
+  zip_data <- zip_data %>% rename(Zip_Code = ZCTA5)
+  
+  return(zip_data)
 }
 
 
@@ -52,8 +52,8 @@ school_data <- get_zipcode(school_data, 4326)
 
 # Create popup
 school_data$popup <- paste("<b>", school_data$School, "</b><br>",
-                       "Type: ", school_data$SchoolType, "<br>",
-                       "Zip:", school_data$Zip_Code, "<br>")
+                           "Type: ", school_data$SchoolType, "<br>",
+                           "Zip:", school_data$Zip_Code, "<br>")
 
 # Load park data
 park_data <- read_csv("Parks_Locations_and_Features.csv")
@@ -112,7 +112,7 @@ population <- gather(population, key= "Race", value = "RaceTotal", -c(Total, Zip
 
 # aggregate data by zip code and race
 popAggregate <- population%>%group_by(Zip_Code, Race) %>%
-               summarise(Total = sum(RaceTotal))
+  summarise(Total = sum(RaceTotal))
 
 # find total for all groups
 totals <- popAggregate %>% group_by(Zip_Code) %>%summarise(Totals = sum(Total))
@@ -245,8 +245,8 @@ pop_age_by_zip <- get_zipcode(census_age, 3857) %>%
   summarise(across(.cols = starts_with("SE"), .fns = sum))
 
 colnames(pop_age_by_zip) <- c("zipcode", "under_5", "5-9",
-                          "10-14","15-17", "18-24", "25-34", "35-44","45-54",
-                          "55-64", "65-74", "75-84", "over_84")
+                              "10-14","15-17", "18-24", "25-34", "35-44","45-54",
+                              "55-64", "65-74", "75-84", "over_84")
 
 # Tidy age data
 pop_age_tidy <- gather(pop_age_by_zip,
@@ -266,15 +266,65 @@ pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
 # subset data
 
 business_sub <- business_points %>%
-  select(c(1:10))
+  select(c(1:11))
 
-abandoned_sub <- abandoned_spatial %>%
-  select(c("Outcome_St","Street_Nam","Code_Enfor","Date_of_Ou","Zip_Code","Structures","popup"))
+abandoned_sub <- abandoned_spatial
+
+abandoned_sub$address <- paste(abandoned_spatial$Address_Nu, abandoned_spatial$Street_Nam,
+                               abandoned_spatial$Suffix, sep=" ") 
+
+abandoned_sub <- abandoned_sub %>%
+  select(c("Zip_Code", "address", "Outcome_St","Structures","County_Tax","Code_Enfor"))
+
+
+
+
+business_sub <- mutate(business_sub,
+                       classify = 
+                         ifelse(
+                           grepl("rest|food", business_points$Classifi_1, ignore.case=TRUE ), "RESTAURANT",
+                           ifelse(
+                             grepl("park", business_points$Classifi_1, ignore.case=TRUE ), "PARKING",
+                             ifelse(
+                               grepl("massage|tat", business_points$Classifi_1, ignore.case=TRUE ), "MASSAGE", 
+                               ifelse(
+                                 grepl("open|outdoor", business_points$Classifi_1, ignore.case=TRUE ), "OUTDOOR",
+                                 ifelse(
+                                   grepl("pet", business_points$Classifi_1, ignore.case=TRUE ), "PET",
+                                   ifelse(
+                                     grepl("chari|donat", business_points$Classifi_1, ignore.case=TRUE ), "CHARITY",
+                                     ifelse(
+                                       grepl("auto|repair", business_points$Classifi_1, ignore.case=TRUE ), "AUTOMOTIVE REPAIRS",
+                                       ifelse(
+                                         grepl("taxi", business_points$Classifi_1, ignore.case=TRUE ), "TAXI/CAB",
+                                         ifelse(
+                                           grepl("hotel|motel", business_points$Classifi_1, ignore.case=TRUE ), "HOTELS",
+                                           ifelse(
+                                             grepl("pedd", business_points$Classifi_1, ignore.case=TRUE ), "PEDDLER",
+                                             ifelse(
+                                               grepl("trans", business_points$Classifi_1, ignore.case=TRUE ), "TRANSIENT MERCHANT",
+                                               ifelse(
+                                                 grepl("alarm", business_points$Classifi_1, ignore.case=TRUE ), "SECURITY COMPANY",
+                                                 ifelse(
+                                                   grepl("arbor", business_points$Classifi_1, ignore.case=TRUE ), "ARBORIST",
+                                                   ifelse(
+                                                     grepl("rubbish", business_points$Classifi_1, ignore.case=TRUE ), "GARBAGE REMOVAL",
+                                                     ifelse(
+                                                       grepl("metal", business_points$Classifi_1, ignore.case=TRUE ), "METAL DEALERS",
+                                                       ifelse(
+                                                         grepl("vehicle", business_points$Classifi_1, ignore.case=TRUE ), "TOWING COMPANY",
+                                                         ifelse(
+                                                           grepl("laundry", business_points$Classifi_1, ignore.case=TRUE ), "LAUNDROMAT",
+                                                           ifelse(
+                                                             grepl("second", business_points$Classifi_1, ignore.case=TRUE ), "SECOND HAND DEALERS",
+                                                             ifelse(
+                                                               grepl("adult", business_points$Classifi_1, ignore.case=TRUE ), "ADULT BUSINESS",
+                                                               "OTHERS") )))))))
+                                             )  )  ) ) )  ) )  ) ) ) ))
 
 business_sub$id <- seq.int(nrow(business_sub))
 
 abandoned_sub$id <- seq.int(nrow(abandoned_sub))
-
 
 ############################################################################
 
@@ -286,18 +336,18 @@ header <- dashboardHeader(
 
 filter_s <- selectInput(inputId = "zipcode", 
                         label = "Choose Zip Code",
-
+                        
                         #choices = business_spatial$Zip_Code,
-                         choices = sort(unique(c(unique(park_data$Zip_Code), 
-                                            unique(business_spatial$Zip_Code), 
-                                            unique(abandoned_spatial$Zip_Code),
-                                            unique(school_data$Zip_Code),
-                                            unique(popAggregate$Zip_Code),
-                                            unique(householdsAggregate$Zip_Code),
-                                            unique(householdsFamily$Zip_Code)))), 
-
+                        choices = sort(unique(c(unique(park_data$Zip_Code), 
+                                                unique(business_spatial$Zip_Code), 
+                                                unique(abandoned_spatial$Zip_Code),
+                                                unique(school_data$Zip_Code),
+                                                unique(popAggregate$Zip_Code),
+                                                unique(householdsAggregate$Zip_Code),
+                                                unique(householdsFamily$Zip_Code)))), 
+                        
                         selected=46617
-
+                        
 ) # filter Zip Code
 
 
@@ -328,36 +378,36 @@ body <- dashboardBody(
     # Use the template from here for anything you want to add !!
     
     #### EDITH ##################
-
+    
     tabItem("schools",
             fluidRow(
               
-            # create map box  
-            box( height = 515,
-                 title = "Schools and Parks",
-                 status="warning", solidHeader = TRUE,
-                 leafletOutput(outputId = "map"),
-                ), # end box
-            
-            # create selection box
-            box(height = 175,
-              # create school type selection  
-              selectInput(inputId = "stype",
-                          label = "Select School Type:",
-                          choices = c("Private", "Public")),
+              # create map box  
+              box( height = 515,
+                   title = "Schools and Parks",
+                   status="warning", solidHeader = TRUE,
+                   leafletOutput(outputId = "map"),
+              ), # end box
               
-              # create park type selection
-              selectInput(inputId = "ptype",
-                          label = "Select Park Type:",
-                          choices = types)
+              # create selection box
+              box(height = 175,
+                  # create school type selection  
+                  selectInput(inputId = "stype",
+                              label = "Select School Type:",
+                              choices = c("Private", "Public")),
+                  
+                  # create park type selection
+                  selectInput(inputId = "ptype",
+                              label = "Select Park Type:",
+                              choices = types)
               ),
-            # create donut chart box
-            tabBox(height  = 300,
-                   tabPanel("Family Type",
-                             plotOutput(outputId = "donut", height = 250)
-                   )
+              # create donut chart box
+              tabBox(height  = 300,
+                     tabPanel("Family Type",
+                              plotOutput(outputId = "donut", height = 250)
+                     )
               )
-
+              
             ),
             
             fluidRow(
@@ -375,34 +425,34 @@ body <- dashboardBody(
                 )
               )
             )
-
-        ),# end tabItem
-
-
+            
+    ),# end tabItem
+    
+    
     # End parks and schools tab item Edith
-
+    
     #### DANA ##################
     
     tabItem("business",
             fluidRow(
               box(width = 2, 
-                radioButtons(inputId = "bus_type",
-                            label = "Choose Business Type",
-                            choices = c("All" = 'all', "Restaurant/Food Services" = "resto", 
-                                        "Parking" = 'parking', "Massage/Tatoo Parlors" = 'massage',
-                                        "Outdoor Venues" = 'outdoor', "Pet" = 'pet', 
-                                        "Non-profit" = 'donation', "Others" = 'other'),
-                            selected = "all")
-                  ), # end box
+                  radioButtons(inputId = "bus_type",
+                               label = "Choose Business Type",
+                               choices = c("All" = 'all', "Restaurant/Food Services" = "resto", 
+                                           "Parking" = 'parking', "Massage/Tatoo Parlors" = 'massage',
+                                           "Outdoor Venues" = 'outdoor', "Pet" = 'pet', 
+                                           "Non-profit" = 'donation', "Others" = 'other'),
+                               selected = "all")
+              ), # end box
               
               box(
                 title = "Map", solidHeader = T, width = 10,
                 status = "warning",
                 leafletOutput(outputId = "bus_map")
                 
-                 )  # end box
+              )  # end box
               
-              ), # end fluidRow 1
+            ), # end fluidRow 1
             
             fluidRow(
               box(
@@ -411,7 +461,7 @@ body <- dashboardBody(
                              choices = c("Population Percentage" = "prop", "Population Value" = "pop" ),
                              selected = "prop"),
                 uiOutput(outputId = "age_plot_or_warning")
-                ), # end box
+              ), # end box
               
               box(
                 title = "Population Distribution by Gender", status="primary", solidHeader = T, width = 6,
@@ -472,6 +522,9 @@ body <- dashboardBody(
                 ),
                 tabPanel("Gender Distribution Data",
                          DT::dataTableOutput("gendertable")
+                ),
+                tabPanel("Type of Businesses",
+                         DT::dataTableOutput("businesstype")
                 )
               )
               
@@ -516,111 +569,111 @@ ui <- shinyUI(
 server <- function(input, output) {
   ## Edith
   
-
-    # return school data based on inputs
-    dataSchool <- eventReactive(list(input$zipcode, input$stype), {
-               return(school_data%>%
-                        filter(school_data$Zip_Code==input$zipcode, 
-                               school_data$SchoolType==input$stype))
-    })
+  
+  # return school data based on inputs
+  dataSchool <- eventReactive(list(input$zipcode, input$stype), {
+    return(school_data%>%
+             filter(school_data$Zip_Code==input$zipcode, 
+                    school_data$SchoolType==input$stype))
+  })
+  
+  # return park data based on inputs
+  dataParks <- eventReactive(c(input$zipcode, input$ptype),{
+    return(park_data%>%
+             filter(park_data$Zip_Code == input$zipcode, 
+                    park_data$Park_Type == input$ptype))
     
-    # return park data based on inputs
-    dataParks <- eventReactive(c(input$zipcode, input$ptype),{
-                  return(park_data%>%
-                         filter(park_data$Zip_Code == input$zipcode, 
-                                park_data$Park_Type == input$ptype))
-      
-    })
+  })
+  
+  # return population data based on inputs
+  zipOne <- eventReactive(input$zipcode, {
+    return(popAggregate%>%
+             filter(Zip_Code == input$zipcode))
     
-    # return population data based on inputs
-    zipOne <- eventReactive(input$zipcode, {
-           return(popAggregate%>%
-                    filter(Zip_Code == input$zipcode))
-
-    })
+  })
+  
+  # return household data based on input
+  zipTwo <- eventReactive(input$zipcode, {
+    return(householdsAggregate%>%
+             filter(Zip_Code == input$zipcode))
     
-    # return household data based on input
-    zipTwo <- eventReactive(input$zipcode, {
-      return(householdsAggregate%>%
-               filter(Zip_Code == input$zipcode))
-
-    })
-
-    # return household data based on input
-    zipThree <- eventReactive(input$zipcode, {
-      return(householdsFamily%>%
-               filter(Zip_Code == input$zipcode))
-    })
-
-    # output the school type and park type
-    output$map <- renderLeaflet({
-                leaflet() %>%
-                addTiles() %>%
-                addPolygons(data = dataSchool(), popup = ~popup) %>%
-                addMarkers(data = dataParks(), popup = ~popup)
-    })
-    
-    # plot household distribution
-    output$barTwo <- renderPlot({
-                     zipTwo()%>%
-                     ggplot(aes(fct_reorder(householdType, totals), totals, fill = FamNonFam)) +
-                     geom_bar(stat = "identity") +
-                     theme(panel.background = element_blank()) +
-                     theme(axis.line.y = element_line(colour = "black")) +
-                     scale_fill_brewer(palette = "Pastel1") +
-                     geom_text(aes(label = totals, vjust = -.2, hjust = "center"),
-                               position = position_dodge(0.90), angle = -90)+
-                     theme(axis.text.x = element_blank()) +
-                     theme(axis.ticks.x = element_blank()) +
-                     theme(text = element_text(size=15)) +
-                     xlab("") +
-                     ylab("") +
-                     theme(legend.position  = "none")+
-                     coord_flip()
-    })
-    
-    # plot ethnicity distribution
-    output$barOne <- renderPlot({
-                     zipOne()%>%
-                     ggplot(aes(fct_reorder(Race, percent), percent)) +
-                     geom_bar(stat = "identity", fill = "#CCEBC5", alpha = 0.6) +
-                     theme(panel.background = element_blank()) +
-                     theme(axis.line.y = element_line(colour = "black")) +
-                     geom_text(aes(label = paste0(percent,"%"), vjust = -.2, hjust = "center"),
-                     position = position_dodge(0.90), angle = -90)+
-                     theme(axis.text.x = element_blank()) +
-                     theme(axis.ticks.x = element_blank()) +
-                     theme(text = element_text(size=15)) +
-                     xlab("") +
-                     ylab("") +
-                     coord_flip() 
-    })
-    
-    # create donut chart
-    output$donut <- renderPlot({
-                      zipThree()%>%ggplot(aes(ymax=ymax, ymin=ymin, xmax=10, xmin=2, fill=FamNonFam)) +
-                      geom_rect() +
-                      geom_label(x=5, aes(y=labelPositions,
-                                          label=label), size=5, color = "white") +
-                      scale_fill_brewer(palette = "Pastel1") +
-                      coord_polar(theta = "y") +
-                      xlim(c(-10, 10)) +
-                      theme_void()+
-                      theme(legend.position = "none")
-     })
-
+  })
+  
+  # return household data based on input
+  zipThree <- eventReactive(input$zipcode, {
+    return(householdsFamily%>%
+             filter(Zip_Code == input$zipcode))
+  })
+  
+  # output the school type and park type
+  output$map <- renderLeaflet({
+    leaflet() %>%
+      addTiles() %>%
+      addPolygons(data = dataSchool(), popup = ~popup) %>%
+      addMarkers(data = dataParks(), popup = ~popup)
+  })
+  
+  # plot household distribution
+  output$barTwo <- renderPlot({
+    zipTwo()%>%
+      ggplot(aes(fct_reorder(householdType, totals), totals, fill = FamNonFam)) +
+      geom_bar(stat = "identity") +
+      theme(panel.background = element_blank()) +
+      theme(axis.line.y = element_line(colour = "black")) +
+      scale_fill_brewer(palette = "Pastel1") +
+      geom_text(aes(label = totals, vjust = -.2, hjust = "center"),
+                position = position_dodge(0.90), angle = -90)+
+      theme(axis.text.x = element_blank()) +
+      theme(axis.ticks.x = element_blank()) +
+      theme(text = element_text(size=15)) +
+      xlab("") +
+      ylab("") +
+      theme(legend.position  = "none")+
+      coord_flip()
+  })
+  
+  # plot ethnicity distribution
+  output$barOne <- renderPlot({
+    zipOne()%>%
+      ggplot(aes(fct_reorder(Race, percent), percent)) +
+      geom_bar(stat = "identity", fill = "#CCEBC5", alpha = 0.6) +
+      theme(panel.background = element_blank()) +
+      theme(axis.line.y = element_line(colour = "black")) +
+      geom_text(aes(label = paste0(percent,"%"), vjust = -.2, hjust = "center"),
+                position = position_dodge(0.90), angle = -90)+
+      theme(axis.text.x = element_blank()) +
+      theme(axis.ticks.x = element_blank()) +
+      theme(text = element_text(size=15)) +
+      xlab("") +
+      ylab("") +
+      coord_flip() 
+  })
+  
+  # create donut chart
+  output$donut <- renderPlot({
+    zipThree()%>%ggplot(aes(ymax=ymax, ymin=ymin, xmax=10, xmin=2, fill=FamNonFam)) +
+      geom_rect() +
+      geom_label(x=5, aes(y=labelPositions,
+                          label=label), size=5, color = "white") +
+      scale_fill_brewer(palette = "Pastel1") +
+      coord_polar(theta = "y") +
+      xlim(c(-10, 10)) +
+      theme_void()+
+      theme(legend.position = "none")
+  })
+  
   #######################################################################
   
   ## Dana
-    
+  
   #### MAP for BUSINESS AND ABANDONED LOTS
   ## Subset business and abandoned data based on zip code input
   business_zip <- reactive({
-                  business_spatial %>% filter(Zip_Code == input$zipcode)
+    business_spatial %>% filter(Zip_Code == input$zipcode)
   })
   
   abandoned_zip <- reactive({
-                     abandoned_spatial %>% filter(Zip_Code == input$zipcode)
+    abandoned_spatial %>% filter(Zip_Code == input$zipcode)
   })
   
   business_filter <- reactive({
@@ -641,16 +694,16 @@ server <- function(input, output) {
            donation = business_zip() %>% filter(str_detect(str_to_lower(Classifi_1), ".*charitable.*|.*donation.*")),
            
            other = business_zip() %>% 
-                  filter(str_detect(str_to_lower(Classifi_1), "resta.*|food.*|.*park.*|.*massage.*|
+             filter(str_detect(str_to_lower(Classifi_1), "resta.*|food.*|.*park.*|.*massage.*|
                                                               .*tatoo.*|.*open.*|.*outdoor.*|.*pet.*|
                                                               .*charitable.*|.*donation.*", 
-                                                              negate = T))
-          ) #end switch
+                               negate = T))
+    ) #end switch
   })
   
   # Create map
   output$bus_map <- renderLeaflet({
-     leaflet() %>% 
+    leaflet() %>% 
       
       addTiles() %>% 
       
@@ -693,463 +746,527 @@ server <- function(input, output) {
                        options = layersControlOptions(collapsed = F)) 
     
   }) #end bus_map
-
-    #### BAR GRAPH FOR AGE DISTRIBUTION
-    ## Subset age data based on zip code
-    age_zip <- reactive({
+  
+  #### BAR GRAPH FOR AGE DISTRIBUTION
+  ## Subset age data based on zip code
+  age_zip <- reactive({
+    
+    age_filter <- pop_age_tidy %>% 
+      filter(zipcode == input$zipcode) %>% 
+      mutate(prop = round(population/sum(.$population) * 100, 2))
+    
+    return(age_filter)
+  }) #end age_zip
+  
+  ## Switch between population and proportion 
+  age_graph <- reactive({
+    switch(input$age_choice,
+           prop = plot_ly(age_zip(), x = ~age_range, y = ~prop, type = 'bar', color = I("#9999CC"),
+                          text = ~paste("Age Range:", age_range, "<br>","Percentage:",prop, "%"),
+                          hoverinfo = 'text') %>%  
+             layout(yaxis=list(title = "Population (%)")),
+           
+           pop = plot_ly(age_zip(), x = ~age_range, y = ~population, type = 'bar', color = I("#9999CC"),
+                         text = ~paste("Age Range:", age_range, "<br>","Population:",population),
+                         hoverinfo = 'text') %>%  
+             layout(yaxis=list(title = "Population")) 
+           
+    ) # end switch
+    
+  }) # end age_graph
+  
+  ## Display age plot or warning
+  output$age_plot <- renderPlotly({
+    age_graph() %>% layout(yaxis=list(titlefont = list(size = 13,
+                                                       color ="navy"),
+                                      tickfont = list (size = 12,
+                                                       color = "navy"),
+                                      gridcolor = "white",
+                                      showgrid = T),
+                           xaxis= list(title = "Age",
+                                       titlefont = list(size = 13,
+                                                        color ="navy"),
+                                       tickfont = list (size = 12,
+                                                        color = "#9999CC")),
+                           bargap = 0.3)  
+    
+  }) # end age_plot
+  
+  output$age_warning <- renderText({
+    paste("Age data not avaialable for Zip Code ", input$zipcode, ".")
+  }) # end age_warning
+  
+  output$age_plot_or_warning <- renderUI({
+    
+    if(input$zipcode %in% pop_age_tidy$zipcode) {
+      plotlyOutput("age_plot", height = 365)
       
-      age_filter <- pop_age_tidy %>% 
-        filter(zipcode == input$zipcode) %>% 
-        mutate(prop = round(population/sum(.$population) * 100, 2))
+    }
+    else{
+      textOutput("age_warning")
+    }
+    
+  })# end age_plot_or_warning
+  
+  
+  #### PIE GRAPH FOR GENDER DISTRIBUTION 
+  ## Subset gender data based on zip code
+  fm_zip <- reactive({
+    
+    fm_filter <- pop_fm_tidy %>%
+      filter(zipcode == input$zipcode) 
+    
+    return(fm_filter)
+  }) # end fm_zip
+  
+  ## Switch between population and proportion
+  value_choice <- reactive({
+    switch(input$fm_choice,
+           
+           pop = "label+value",
+           prop = "label+percent"
+    ) # end switch
+  }) # end gender_graph
+  
+  ## Display gender plot or warning 
+  
+  output$gender_plot <- renderPlotly({
+    
+    plot_ly(fm_zip(), labels = ~gender, values = ~population, type = "pie",
+            textposition = "inside",
+            textinfo = value_choice(),
+            insidetextfont = list(color = '#1975d1', size = 15),
+            hoverinfo = "skip",
+            marker = list(colors = c("#b7ebab","#ebc8ab"),
+                          line = list(color = '#FFFFFF', width = 1.5)),
+            showlegend = F) %>% 
       
-      return(age_filter)
-    }) #end age_zip
+      layout(yaxis=list(showgrid = F,
+                        zeroline = F,
+                        showticklabels = F),
+             xaxis= list(showgrid = F,
+                         zeroline = F,
+                         showticklabels = F))
     
-    ## Switch between population and proportion 
-    age_graph <- reactive({
-      switch(input$age_choice,
-             prop = plot_ly(age_zip(), x = ~age_range, y = ~prop, type = 'bar', color = I("#9999CC"),
-                            text = ~paste("Age Range:", age_range, "<br>","Percentage:",prop, "%"),
-                            hoverinfo = 'text') %>%  
-               layout(yaxis=list(title = "Population (%)")),
-             
-             pop = plot_ly(age_zip(), x = ~age_range, y = ~population, type = 'bar', color = I("#9999CC"),
-                       text = ~paste("Age Range:", age_range, "<br>","Population:",population),
-                       hoverinfo = 'text') %>%  
-               layout(yaxis=list(title = "Population")) 
-                     
-      ) # end switch
-      
-    }) # end age_graph
+  }) # end gender_plot
+  
+  output$gender_warning <- renderText({
+    paste("Gender data no available for Zip Code ", input$zipcode, ".")
+  })# end gender_warning
+  
+  output$gender_plot_or_warning <- renderUI({
     
-    ## Display age plot or warning
-    output$age_plot <- renderPlotly({
-      age_graph() %>% layout(yaxis=list(titlefont = list(size = 13,
-                                                         color ="navy"),
-                                        tickfont = list (size = 12,
-                                                         color = "navy"),
-                                        gridcolor = "white",
-                                        showgrid = T),
-                             xaxis= list(title = "Age",
-                                         titlefont = list(size = 13,
-                                                          color ="navy"),
-                                         tickfont = list (size = 12,
-                                          color = "#9999CC")),
-                             bargap = 0.3)  
-       
-      }) # end age_plot
+    if(input$zipcode %in% pop_fm_tidy$zipcode) {
+      plotlyOutput("gender_plot", height = 365)
+    }
+    else{
+      textOutput("gender_warning")
+    }
     
-    output$age_warning <- renderText({
-      paste("Age data not avaialable for Zip Code ", input$zipcode, ".")
-    }) # end age_warning
-    
-    output$age_plot_or_warning <- renderUI({
-      
-      if(input$zipcode %in% pop_age_tidy$zipcode) {
-        plotlyOutput("age_plot", height = 365)
-        
-      }
-      else{
-        textOutput("age_warning")
-      }
-      
-    })# end age_plot_or_warning
-    
-    
-    #### PIE GRAPH FOR GENDER DISTRIBUTION 
-    ## Subset gender data based on zip code
-    fm_zip <- reactive({
-
-      fm_filter <- pop_fm_tidy %>%
-        filter(zipcode == input$zipcode) 
-
-      return(fm_filter)
-    }) # end fm_zip
-
-    ## Switch between population and proportion
-    value_choice <- reactive({
-      switch(input$fm_choice,
-
-             pop = "label+value",
-             prop = "label+percent"
-            ) # end switch
-    }) # end gender_graph
-    
-    ## Display gender plot or warning 
-    
-    output$gender_plot <- renderPlotly({
-      
-      plot_ly(fm_zip(), labels = ~gender, values = ~population, type = "pie",
-                        textposition = "inside",
-                        textinfo = value_choice(),
-                        insidetextfont = list(color = '#1975d1', size = 15),
-                        hoverinfo = "skip",
-                        marker = list(colors = c("#b7ebab","#ebc8ab"),
-                                      line = list(color = '#FFFFFF', width = 1.5)),
-                                      showlegend = F) %>% 
-        
-        layout(yaxis=list(showgrid = F,
-                          zeroline = F,
-                          showticklabels = F),
-              xaxis= list(showgrid = F,
-              zeroline = F,
-             showticklabels = F))
-      
-      }) # end gender_plot
-    
-    output$gender_warning <- renderText({
-      paste("Gender data no available for Zip Code ", input$zipcode, ".")
-    })# end gender_warning
-    
-    output$gender_plot_or_warning <- renderUI({
-      
-      if(input$zipcode %in% pop_fm_tidy$zipcode) {
-        plotlyOutput("gender_plot", height = 365)
-      }
-      else{
-        textOutput("gender_warning")
-      }
-      
-    })# end gender_plot_or_warning
-    
+  })# end gender_plot_or_warning
+  
   
   ######################################################################
   ## Ankur
   
-    parks_sub <-  reactive({
-      
-      subset <- subset(parks.subset, Zip_Code == input$zipcode) 
-    })
+  parks_sub <-  reactive({
     
-    school_sub <-  reactive({
-      
-      subset <- subset(dataSchool(), Zip_Code == input$zipcode) 
-    })
-    
-    business_sub2 <-  reactive({
-      
-      subset <- subset(business_sub, Zip_Code == input$zipcode) 
-    })
-    
-    abandoned_sub2 <-  reactive({
-      
-      subset <- subset(abandoned_sub, Zip_Code == input$zipcode) 
-    })
-    
-    output$summarytable <- DT::renderDataTable({
-      
-      parks_sub2 <- parks_sub() %>% select(-c(Lat, Lon, id, Zip_Code))
-      
-      DT::datatable(parks_sub2, selection="single", options=list(stateSave=TRUE, "pageLength"=5), filter="top") 
-      
-    }) # end summarytable
-    
-    output$summarytable2 <- DT::renderDataTable({
-      
-      data_sch <- dataSchool() %>% select (-c(popup, OBJECTID, Zip_Code, id)) %>%
-        st_set_geometry(NULL)
-      
-      DT::datatable(data_sch, selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) %>% formatStyle(
-        'School', backgroundColor= styleInterval(3.4, c('gray','yellow'))
-      )
-    }) # end summarytable2
-    
-    output$ethnicitytable <- DT::renderDataTable({
-      
-      zipone_sub <- zipOne() %>% select(-c(Zip_Code, Totals))
-      
-      DT::datatable(zipone_sub, selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
-      
-    }) # end ethnicity table
-    
-    output$householdtable <- DT::renderDataTable({
-      
-      ziptwo_sub <- zipTwo() %>% select(-c(Zip_Code))
-      
-      DT::datatable(ziptwo_sub, selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
-      
-    }) # end household table
-    
-    output$agetable <- DT::renderDataTable({
-      
-      # ziptwo_sub <- zipTwo() %>% select(-c(ypos_prop))
-      
-      DT::datatable(age_zip(), selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
-      
-    }) # end age table
-    
-    output$gendertable <- DT::renderDataTable({
-      
-      fm_zip_sub <- fm_zip() # %>% select(-c(ypos_prop))
-      
-      DT::datatable(fm_zip_sub, selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
-      
-    }) # end gender table
-    
-    # to keep track of previously selected row
-    
-    prev_row <- reactiveVal()
-    prev_row2 <- reactiveVal() # to track schools
-    
-    # new icon style
-    my_icon = makeAwesomeIcon(icon = 'flag', markerColor = 'red', iconColor = 'white')
-    my_icon2 = makeAwesomeIcon(icon = 'flag', markerColor = 'green', iconColor = 'blue')
-    # for parks
-    
-    observeEvent(input$summarytable_rows_selected, {
-      row_selected = parks_sub()[input$summarytable_rows_selected,]
-      proxy <- leafletProxy('x2')
-      print(row_selected)
-      proxy %>%
-        addAwesomeMarkers(popup=row_selected$Park_Name,
-                          layerId = as.character(row_selected$id),
-                          lng=row_selected$Lon, 
-                          lat=row_selected$Lat,
-                          icon = my_icon)
-      
-      # Reset previously selected marker
-      if(!is.null(prev_row()))
-      {
-        proxy %>%
-          addMarkers(popup=prev_row()$Park_Name, 
-                     layerId = as.character(prev_row()$id),
-                     lng=prev_row()$Lon, 
-                     lat=prev_row()$Lat
-          )
-      }
-      # set new value to reactiveVal 
-      prev_row(row_selected)
-    })
-    
-    observeEvent(input$summarytable2_rows_selected, {
-      row_selected = school_sub()[input$summarytable2_rows_selected,]
-      proxy <- leafletProxy('x2')
-      print(row_selected)
-      proxy %>%
-        addPolygons(data=school_sub(), popup=row_selected$School,
-                    layerId = as.character(row_selected$id),
-                    highlightOptions = highlightOptions(color = "white",
-                                                        weight = 2,
-                                                        bringToFront = TRUE))
-      
-      # Reset previously selected marker
-      if(!is.null(prev_row2()))
-      {
-        proxy %>%
-          addPolygons(data=school_sub(), popup=prev_row2()$School, 
-                      layerId = as.character(prev_row()$id)
-                      
-          )
-      }
-      # set new value to reactiveVal 
-      prev_row2(row_selected)
-    })
-    
-    
-    output$x2 <- renderLeaflet({
-      
-      pal <- colorFactor(palette = 'Set1', domain =parks_sub()$Park_Name)
-      
-      leaflet()  %>%
-        addTiles()  %>%
-        # Add markers for Parks
-        addMarkers(data = parks_sub(),
-                   popup = ~Park_Name,
-                   layerId=as.character(parks_sub()$id),
-                   #                #stroke = F,
-                   #                 #fillOpacity = 0.8,
-                   #                #radius=8,
-                   group = "Parks") %>%
-        
-        
-        
-        
-        # Add legend for Parks
-        addLegend(data = parks_sub(),
-                  labels = "Parks",
-                  colors = 'steelblue',
-                  opacity = 1,
-                  group = "Parks") %>%
-        
-        # Add outline for schools
-        addPolygons(data = dataSchool(),
-                    popup = ~popup,
-                    color = '#CC6666',
-                    opacity = 0.5,
-                    fillOpacity = 0.5,
-                    group = "Schools") %>%
-        
-        # Add legend for Schools
-        addLegend(data = dataSchool(),
-                  labels = "Schools",
-                  colors = '#CC6666',
-                  opacity = 0.5,
-                  group = "Schools") %>%
-        
-        # Add layer control
-        addLayersControl(overlayGroups = c("Parks", "Schools"),
-                         options = layersControlOptions(collapsed = F)) 
-      
-      
-      
-      
-    })
-    
-    observeEvent(input$x2_marker_click, {
-      clickId <- input$x2_marker_click$id
-      dataTableProxy("summarytable") %>%
-        selectRows(which(parks_sub()$id == clickId)) %>%
-        selectPage(which(input$summarytable_rows_all == clickId) %/% input$summarytable_state$length + 1)
-    })
-    
-    observeEvent(input$x2_marker_click, {
-      clickId <- input$x2_marker_click$id
-      dataTableProxy("summarytable2") %>%
-        selectRows(which(school_sub()$id == clickId)) %>%
-        selectPage(which(input$summarytable2_rows_all == clickId) %/% input$summarytable2_state$length + 1)
-    })
-    
-    #### Events for Business Summary tabs.
-    
-    output$business_summary <- DT::renderDataTable({
-      
-      business_table <- business_sub2() %>%
-        select(-c(X,Y,City, State,Zip_Code,  id))
-      
-      DT::datatable(business_table, selection="single", options=list(stateSave=TRUE, "pageLength"=5), filter="top") 
-      
-    }) # end summarytable
-    
-    output$abandoned_summary <- DT::renderDataTable({
-      
-      abandoned_table<- abandoned_sub2() %>% select (-c(popup, Zip_Code, id)) %>%
-        st_set_geometry(NULL)
-      
-      DT::datatable(abandoned_table, selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
-      
-    }) # end summarytable2
-    
-    # to keep track of previously selected row
-    
-    prev_row3 <- reactiveVal()
-    prev_row4 <- reactiveVal() # to track abandoned
-    
-    # new icon style
-    my_icon3 = makeAwesomeIcon(icon = 'flag', markerColor = 'red', iconColor = 'white')
-    my_icon4 = makeAwesomeIcon(icon = 'flag', markerColor = 'green', iconColor = 'blue')
-    # for parks
-    
-    observeEvent(input$business_summary_rows_selected, {
-      row_selected = business_sub2()[input$business_summary_rows_selected,]
-      proxy <- leafletProxy('x3')
-      print(row_selected)
-      proxy %>%
-        addAwesomeMarkers(popup=row_selected$Business_N,
-                          layerId = as.character(row_selected$id),
-                          lng=row_selected$X, 
-                          lat=row_selected$Y,
-                          icon = my_icon3)
-      
-      # Reset previously selected marker
-      if(!is.null(prev_row3()))
-      {
-        proxy %>%
-          addMarkers(popup=prev_row3()$Business_N, 
-                     layerId = as.character(prev_row3()$id),
-                     lng=prev_row3()$X, 
-                     lat=prev_row3()$Y
-          )
-      }
-      # set new value to reactiveVal 
-      prev_row3(row_selected)
-    })
-    
-    observeEvent(input$abandoned_summary_rows_selected, {
-      row_selected = abandoned_sub2()[input$abandoned_summary_rows_selected,]
-      proxy <- leafletProxy('x2')
-      print(row_selected)
-      proxy %>%
-        addPolygons(data=abandoned_sub2(), popup=row_selected$Street_Nam,
-                    layerId = as.character(row_selected$id),
-                    highlightOptions = highlightOptions(color = "white",
-                                                        weight = 2,
-                                                        bringToFront = TRUE))
-      
-      # Reset previously selected marker
-      if(!is.null(prev_row4()))
-      {
-        proxy %>%
-          addPolygons(data=abandoned_sub2(), popup=prev_row4()$Street_Nam, 
-                      layerId = as.character(prev_row4()$id)
-                      
-          )
-      }
-      # set new value to reactiveVal 
-      prev_row4(row_selected)
-    })
-    
-    
-    output$x3 <- renderLeaflet({
-      leaflet() %>% 
-        
-        addTiles() %>% 
-        
-        # User CartoDB.Position tile for easy view
-        addProviderTiles(providers$CartoDB.Positron)  %>% 
-        
-        # Add markers for business
-        addCircleMarkers(data = business_zip(),
-                         popup = ~popup,
-                         stroke = F,
-                         fillOpacity = 0.8,
-                         radius=3,
-                         group = "Business") %>%
-        
-        # Add legend for business
-        addLegend(data = business_zip(),
-                  labels = "Businesess",
-                  colors = 'steelblue',
-                  opacity = 1,
-                  group = "Business") %>%
-        
-        # Add outline for abandoned properties
-        addPolygons(data = abandoned_zip(),
-                    popup = ~popup,
-                    color = '#CC6666',
-                    opacity = 0.5,
-                    fillOpacity = 0.5,
-                    group = "Abandoned Property") %>%
-        
-        # Add legend for abandoned properties
-        addLegend(data = abandoned_zip(),
-                  labels = "Abandoned Properties",
-                  colors = '#CC6666',
-                  opacity = 0.5,
-                  group = "Abandoned Property") %>%
-        
-        # Add layer control
-        addLayersControl(overlayGroups = c("Business", "Abandoned Property"),
-                         options = layersControlOptions(collapsed = F)) 
-      
-    }) #end x3
-    
-    observeEvent(input$x3_marker_click, {
-      clickId <- input$x3_marker_click$id
-      dataTableProxy("business_summary") %>%
-        selectRows(which(business_sub2()$id == clickId)) %>%
-        selectPage(which(input$business_summary_rows_all == clickId) %/% input$business_summary_state$length + 1)
-    })
-    
-    observeEvent(input$x3_marker_click, {
-      clickId <- input$x3_marker_click$id
-      dataTableProxy("abandoned_summary") %>%
-        selectRows(which(abandoned_sub2()$id == clickId)) %>%
-        selectPage(which(input$abandoned_summary_rows_all == clickId) %/% input$abandoned_summary_state$length + 1)
-    })
-    
+    subset <- subset(parks.subset, Zip_Code == input$zipcode) 
+  })
   
- 
-
+  school_sub <-  reactive({
+    
+    subset <- subset(dataSchool(), Zip_Code == input$zipcode) 
+  })
+  
+  business_sub2 <-  reactive({
+    
+    subset <- subset(business_sub, Zip_Code == input$zipcode) 
+  })
+  
+  abandoned_sub2 <-  reactive({
+    
+    subset <- subset(abandoned_sub, Zip_Code == input$zipcode) 
+  })
+  
+  output$summarytable <- DT::renderDataTable({
+    
+    parks_sub2 <- parks_sub() %>% select(-c(Lat, Lon, id, Zip_Code))
+    
+    colnames(parks_sub2) <- c("Park Name","Park Type","Address")
+    
+    
+    DT::datatable(parks_sub2, 
+                  extensions=c('Responsive','Scroller','FixedHeader'),
+                  selection="single", 
+                  options=list(stateSave=TRUE, 
+                               fixedHeader=TRUE,
+                               scrollY=200,
+                               scroller=TRUE
+                               
+                  ), filter="top") 
+    
+  }) # end summarytable
+  
+  output$summarytable2 <- DT::renderDataTable({
+    
+    data_sch <- dataSchool() %>% select (-c(popup, OBJECTID, Zip_Code, id)) %>%
+      st_set_geometry(NULL)
+    
+    colnames(data_sch) <- c("School","Type of School")
+    
+    DT::datatable(data_sch, selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) %>% formatStyle(
+      'School', backgroundColor= styleInterval(3.4, c('gray','yellow'))
+    )
+  }) # end summarytable2
+  
+  output$ethnicitytable <- DT::renderDataTable({
+    
+    zipone_sub <- zipOne() %>% select(-c(Zip_Code, Totals))
+    
+    colnames(zipone_sub) <- c("Zip Code","Race","Total Population","Percentage")
+    
+    DT::datatable(zipone_sub, selection="none", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
+    
+  }) # end ethnicity table
+  
+  output$householdtable <- DT::renderDataTable({
+    
+    ziptwo_sub <- zipTwo() %>% select(-c(Zip_Code))
+    
+    colnames(ziptwo_sub) <- c("Zip Code","Household Type","Family/Non Family","Total Population")
+    
+    DT::datatable(ziptwo_sub, selection="none", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
+    
+  }) # end household table
+  
+  output$agetable <- DT::renderDataTable({
+    
+    age_zip_sub <- age_zip()
+    
+    colnames(age_zip_sub) <- c("Zip Code","Age Range","Population","Proportion of Population")
+    
+    DT::datatable(age_zip_sub, selection="none", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
+    
+  }) # end age table
+  
+  output$gendertable <- DT::renderDataTable({
+    
+    fm_zip_sub <- fm_zip() 
+    
+    colnames(fm_zip_sub) <- c("Zip Code","Gender", "Population Number")
+    
+    DT::datatable(fm_zip_sub, selection="none", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
+    
+  }) # end gender table
+  
+  output$businesstype <- DT::renderDataTable({
+    
+    
+    
+    business_type<- business_sub2() %>% 
+      group_by (classify) %>%
+      summarise(count = n() )
+    
+    colnames(business_type) <- c("Business Classification","Count of Businesses")
+    
+    
+    
+    DT::datatable(business_type, selection="none", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
+    
+  }) # end gender table
+  
+  # to keep track of previously selected row
+  
+  prev_row <- reactiveVal()
+  prev_row2 <- reactiveVal() # to track schools
+  
+  # new icon style
+  my_icon = makeAwesomeIcon(icon = 'flag', markerColor = 'red', iconColor = 'white')
+  my_icon2 = makeAwesomeIcon(icon = 'flag', markerColor = 'green', iconColor = 'blue')
+  # for parks
+  
+  observeEvent(input$summarytable_rows_selected, {
+    row_selected = parks_sub()[input$summarytable_rows_selected,]
+    proxy <- leafletProxy('x2')
+    print(row_selected)
+    proxy %>%
+      addAwesomeMarkers(popup=row_selected$Park_Name,
+                        layerId = as.character(row_selected$id),
+                        lng=row_selected$Lon, 
+                        lat=row_selected$Lat,
+                        icon = my_icon)
+    
+    # Reset previously selected marker
+    if(!is.null(prev_row()))
+    {
+      proxy %>%
+        addMarkers(popup=prev_row()$Park_Name, 
+                   layerId = as.character(prev_row()$id),
+                   lng=prev_row()$Lon, 
+                   lat=prev_row()$Lat
+        )
+    }
+    # set new value to reactiveVal 
+    prev_row(row_selected)
+  })
+  
+  observeEvent(input$summarytable2_rows_selected, {
+    row_selected = school_sub()[input$summarytable2_rows_selected,]
+    proxy <- leafletProxy('x2')
+    print(row_selected)
+    proxy %>%
+      addPolygons(data=school_sub(), popup=row_selected$School,
+                  layerId = as.character(row_selected$id),
+                  highlightOptions = highlightOptions(color = "white",
+                                                      weight = 2,
+                                                      bringToFront = TRUE))
+    
+    # Reset previously selected marker
+    if(!is.null(prev_row2()))
+    {
+      proxy %>%
+        addPolygons(data=school_sub(), popup=prev_row2()$School, 
+                    layerId = as.character(prev_row()$id)
+                    
+        )
+    }
+    # set new value to reactiveVal 
+    prev_row2(row_selected)
+  })
+  
+  
+  output$x2 <- renderLeaflet({
+    
+    pal <- colorFactor(palette = 'Set1', domain =parks_sub()$Park_Name)
+    
+    leaflet()  %>%
+      addTiles()  %>%
+      # Add markers for Parks
+      addMarkers(data = parks_sub(),
+                 popup = ~Park_Name,
+                 layerId=as.character(parks_sub()$id),
+                 #                #stroke = F,
+                 #                 #fillOpacity = 0.8,
+                 #                #radius=8,
+                 group = "Parks") %>%
+      
+      
+      
+      
+      # Add legend for Parks
+      addLegend(data = parks_sub(),
+                labels = "Parks",
+                colors = 'steelblue',
+                opacity = 1,
+                group = "Parks") %>%
+      
+      # Add outline for schools
+      addPolygons(data = dataSchool(),
+                  popup = ~popup,
+                  color = '#CC6666',
+                  opacity = 0.5,
+                  fillOpacity = 0.5,
+                  group = "Schools") %>%
+      
+      # Add legend for Schools
+      addLegend(data = dataSchool(),
+                labels = "Schools",
+                colors = '#CC6666',
+                opacity = 0.5,
+                group = "Schools") %>%
+      
+      # Add layer control
+      addLayersControl(overlayGroups = c("Parks", "Schools"),
+                       options = layersControlOptions(collapsed = F)) 
+    
+    
+    
+    
+  })
+  
+  observeEvent(input$x2_marker_click, {
+    clickId <- input$x2_marker_click$id
+    dataTableProxy("summarytable") %>%
+      selectRows(which(parks_sub()$id == clickId)) %>%
+      selectPage(which(input$summarytable_rows_all == clickId) %/% input$summarytable_state$length + 1)
+  })
+  
+  observeEvent(input$x2_marker_click, {
+    clickId <- input$x2_marker_click$id
+    dataTableProxy("summarytable2") %>%
+      selectRows(which(school_sub()$id == clickId)) %>%
+      selectPage(which(input$summarytable2_rows_all == clickId) %/% input$summarytable2_state$length + 1)
+  })
+  
+  #### Events for Business Summary tabs.
+  
+  output$business_summary <- DT::renderDataTable({
+    
+    cols_to_keep <- c("Zip_Code", "Business_N", "Street_Add", "Business_P", "classify")
+    
+    business_table <- business_sub2() %>% select(cols_to_keep)
+    
+    colnames(business_table) <- c("Zip Code", "Business Name","Street Address","Business Phone", "Classification")
+    
+    business_table <- unique(business_table)
+    
+    
+    DT::datatable(business_table[order(business_table$Classification),], 
+                  extensions=c('Buttons','Responsive','Scroller','FixedHeader','RowGroup'),
+                  selection="single", 
+                  options=list(stateSave=TRUE, 
+                               fixedHeader=TRUE,
+                               scrollY=200,
+                               scroller=TRUE,
+                               rowGroup=list(dataSrc=5),
+                               "pageLength"=30, 
+                               dom='Bfrtip', 
+                               buttons=c('copy','csv','excel','pdf','print')
+                  ), filter="top") 
+    
+  }) # end business table
+  
+  output$abandoned_summary <- DT::renderDataTable({
+    
+    abandoned_table<- abandoned_sub2() %>% select (-c( Zip_Code, id)) %>%
+      st_set_geometry(NULL)
+    
+    colnames(abandoned_table) <- c("Address","Outcome Status","Structure","County Tax ID","Code Enforcement")
+    
+    DT::datatable(abandoned_table, 
+                  extensions=c('Buttons','Responsive','Scroller','FixedHeader'),
+                  selection="single", 
+                  options=list(stateSave=TRUE, 
+                               fixedHeader=TRUE,
+                               scrollY=200,
+                               scroller=TRUE,
+                               dom='Bfrtip', 
+                               buttons=c('copy','csv','excel','pdf','print')
+                  ), filter="top") 
+  }) # end abandoned table
+  
+  # to keep track of previously selected row
+  
+  prev_row3 <- reactiveVal()
+  prev_row4 <- reactiveVal() # to track abandoned
+  
+  # new icon style
+  my_icon3 = makeAwesomeIcon(icon = 'flag', markerColor = 'red', iconColor = 'white')
+  my_icon4 = makeAwesomeIcon(icon = 'flag', markerColor = 'green', iconColor = 'blue')
+  # for parks
+  
+  observeEvent(input$business_summary_rows_selected, {
+    row_selected = business_sub2()[input$business_summary_rows_selected,]
+    proxy <- leafletProxy('x3')
+    print(row_selected)
+    proxy %>%
+      addAwesomeMarkers(popup=row_selected$Business_N,
+                        layerId = as.character(row_selected$id),
+                        lng=row_selected$X, 
+                        lat=row_selected$Y,
+                        icon = my_icon3)
+    
+    # Reset previously selected marker
+    if(!is.null(prev_row3()))
+    {
+      proxy %>%
+        addMarkers(popup=prev_row3()$Business_N, 
+                   layerId = as.character(prev_row3()$id),
+                   lng=prev_row3()$X, 
+                   lat=prev_row3()$Y
+        )
+    }
+    # set new value to reactiveVal 
+    prev_row3(row_selected)
+  })
+  
+  observeEvent(input$abandoned_summary_rows_selected, {
+    row_selected = abandoned_sub2()[input$abandoned_summary_rows_selected,]
+    proxy <- leafletProxy('x2')
+    print(row_selected)
+    proxy %>%
+      addPolygons(data=abandoned_sub2(), popup=row_selected$Street_Nam,
+                  layerId = as.character(row_selected$id),
+                  highlightOptions = highlightOptions(color = "white",
+                                                      weight = 2,
+                                                      bringToFront = TRUE))
+    
+    # Reset previously selected marker
+    if(!is.null(prev_row4()))
+    {
+      proxy %>%
+        addPolygons(data=abandoned_sub2(), popup=prev_row4()$Street_Nam, 
+                    layerId = as.character(prev_row4()$id)
+                    
+        )
+    }
+    # set new value to reactiveVal 
+    prev_row4(row_selected)
+  })
+  
+  
+  output$x3 <- renderLeaflet({
+    leaflet() %>% 
+      
+      addTiles() %>% 
+      
+      # User CartoDB.Position tile for easy view
+      addProviderTiles(providers$CartoDB.Positron)  %>% 
+      
+      # Add markers for business
+      addCircleMarkers(data = business_zip(),
+                       popup = ~popup,
+                       stroke = F,
+                       fillOpacity = 0.8,
+                       radius=3,
+                       group = "Business") %>%
+      
+      # Add legend for business
+      addLegend(data = business_zip(),
+                labels = "Businesess",
+                colors = 'steelblue',
+                opacity = 1,
+                group = "Business") %>%
+      
+      # Add outline for abandoned properties
+      addPolygons(data = abandoned_zip(),
+                  popup = ~popup,
+                  color = '#CC6666',
+                  opacity = 0.5,
+                  fillOpacity = 0.5,
+                  group = "Abandoned Property") %>%
+      
+      # Add legend for abandoned properties
+      addLegend(data = abandoned_zip(),
+                labels = "Abandoned Properties",
+                colors = '#CC6666',
+                opacity = 0.5,
+                group = "Abandoned Property") %>%
+      
+      # Add layer control
+      addLayersControl(overlayGroups = c("Business", "Abandoned Property"),
+                       options = layersControlOptions(collapsed = F)) 
+    
+  }) #end x3
+  
+  observeEvent(input$x3_marker_click, {
+    clickId <- input$x3_marker_click$id
+    dataTableProxy("business_summary") %>%
+      selectRows(which(business_sub2()$id == clickId)) %>%
+      selectPage(which(input$business_summary_rows_all == clickId) %/% input$business_summary_state$length + 1)
+  })
+  
+  observeEvent(input$x3_marker_click, {
+    clickId <- input$x3_marker_click$id
+    dataTableProxy("abandoned_summary") %>%
+      selectRows(which(abandoned_sub2()$id == clickId)) %>%
+      selectPage(which(input$abandoned_summary_rows_all == clickId) %/% input$abandoned_summary_state$length + 1)
+  })
+  
+  
+  
+  
   
 } # end server
 
