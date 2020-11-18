@@ -65,6 +65,31 @@ park_data$popup <- paste("<b>", park_data$Park_Name, "</b><br>",
 
 types <- c(unique(park_data$Park_Type))
 
+### Ankur Added for summary table ####
+
+parks.spatial <- park_data %>% #projecting the table as an sf and setting the coordinate system
+  st_as_sf(coords = c("Lon","Lat")) %>% 
+  st_set_crs(value = 4326)
+
+parks.subset <- park_data %>%
+  select(Park_Name, Park_Type, Zip_Code, Address, Lat, Lon) %>%
+  arrange(desc(Park_Type ))
+
+parks.subset$id <- seq.int(nrow(parks.subset))
+
+str(parks.subset)
+
+school_data$id <- seq.int(nrow(school_data))
+
+str(school_data)
+
+parks_table <- parks.subset %>% select(Park_Name, Park_Type, Address) %>%
+  arrange(desc(Park_Type ))
+
+
+
+### End Ankur Add
+
 
 # get population type data
 population <- census_data %>% select(starts_with("SE_T054",), geometry)
@@ -234,6 +259,22 @@ age_level <- c("under_5", "5-9","10-14","15-17", "18-24", "25-34",
 
 pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
 
+# Ankur Added for summary table ###
+
+
+
+# subset data
+
+business_sub <- business_points %>%
+  select(c(1:10))
+
+abandoned_sub <- abandoned_spatial %>%
+  select(c("Outcome_St","Street_Nam","Code_Enfor","Date_of_Ou","Zip_Code","Structures","popup"))
+
+business_sub$id <- seq.int(nrow(business_sub))
+
+abandoned_sub$id <- seq.int(nrow(abandoned_sub))
+
 
 ############################################################################
 
@@ -273,10 +314,9 @@ sidebar <- dashboardSidebar(
     ), #end menuItem Summary Data - Ankur
     
     menuItem("About the Project", icon = icon("file-code-o"), tabName="about"
-    ), # end menuItem About - Ankur
+    ) # end menuItem About - Ankur
     
-    menuItem("Template to Reuse", tabName = "temps", icon = icon("map")
-    ) #end Templates to reuse
+    
     
   ) # end sidebarmenu
 ) # end sidebar
@@ -293,7 +333,7 @@ body <- dashboardBody(
             fluidRow(
             box( height = 515,
                  title = "Schools and Parks",
-                 status = "primary",
+                 status="warning", solidHeader = TRUE,
                  leafletOutput(outputId = "map"),
                 ), # end box
 
@@ -352,7 +392,7 @@ body <- dashboardBody(
               
               box(
                 title = "Map", solidHeader = T, width = 10,
-                status = "primary",
+                status = "warning",
                 leafletOutput(outputId = "bus_map")
                 
                  )  # end box
@@ -361,7 +401,7 @@ body <- dashboardBody(
             
             fluidRow(
               box(
-                title = "Population Distribution by Age Range", solidHeader = T, width = 6,
+                title = "Population Distribution by Age Range", status="primary",solidHeader = T, width = 6,
                 radioButtons(inputId = "age_choice", label = "",
                              choices = c("Population Percentage" = "prop", "Population Value" = "pop" ),
                              selected = "prop"),
@@ -369,7 +409,7 @@ body <- dashboardBody(
                 ), # end box
               
               box(
-                title = "Population Distribution by Gender", solidHeader = T, width = 6,
+                title = "Population Distribution by Gender", status="primary", solidHeader = T, width = 6,
                 radioButtons(inputId = "fm_choice", label = "",
                              choices = c("Population Percentage" = "prop", "Population Value" = "pop"),
                              selected = "prop"),
@@ -385,13 +425,68 @@ body <- dashboardBody(
     tabItem("park_table",
             fluidRow(
               box(
-                title = "Park Table",
-                status = "primary",
-                DT::dataTableOutput("summarytable")
+                title = "Map based on Data Selection ( Parks and Schools)", width=6,
+                status="warning", solidHeader = TRUE, collapsible = TRUE,
+                leafletOutput('x2', height=500)
               ), # end box
+              tabBox(
+                height = 300,
+                tabPanel("Parks Data",
+                         DT::dataTableOutput("summarytable")
+                ),
+                tabPanel("School Data",
+                         DT::dataTableOutput("summarytable2")
+                )
+              )
+              
               
             ), # end fluidRow
+            fluidRow(
+              box(
+                title = "Ethnicity Data", width=6,status="primary", solidHeader = TRUE,
+                DT::dataTableOutput("ethnicitytable")
+              ),
+              box(
+                title = "Household Data", width=6,status="primary", solidHeader = TRUE,
+                DT::dataTableOutput("householdtable")
+              )
+            ),# end box
+            
     ), # park table - Ankur
+    
+    tabItem("business_table",
+            fluidRow(
+              box(status="warning", solidHeader = TRUE, collapsible = TRUE,
+                  title = "Map based on Data Selection ( Businesses and Abandoned Properties)", width=6,
+                  leafletOutput('x3', height=400)
+              ), # end box
+              tabBox(
+                height = 300,
+                tabPanel("Age Distribution Data", 
+                         DT::dataTableOutput("agetable")
+                ),
+                tabPanel("Gender Distribution Data",
+                         DT::dataTableOutput("gendertable")
+                )
+              )
+              
+              
+            ), # end fluidRow
+            
+            
+            fluidRow(
+              tabBox(
+                height = 300, width=12,
+                tabPanel("Business Data",
+                         DT::dataTableOutput("business_summary")
+                ),
+                tabPanel("Abandoned Data",
+                         DT::dataTableOutput("abandoned_summary")
+                )
+              )
+            ),# end box
+            
+    ), # business  - Ankur
     
     tabItem("about",
             fluidRow(
@@ -399,50 +494,9 @@ body <- dashboardBody(
               ), # end box
               
             ), # end fluidRow
-    ),# About - Ankur
+    )# About - Ankur
     
-    ### TEMPLATE
-    tabItem("temps",
-            fluidRow(
-              box(
-                title = "Distribution",
-                status = "primary",
-                plotOutput("plot1", height = 240),
-                height = 300
-              ),
-              tabBox(
-                height = 300,
-                tabPanel("View 1",
-                         plotOutput("scatter1", height = 230)
-                ),
-                tabPanel("View 2",
-                         plotOutput("scatter2", height = 230)
-                )
-              )
-            ),
-            # Boxes with solid headers
-            fluidRow(
-              box(
-                title = "Histogram control", width = 4, solidHeader = TRUE, status = "primary",
-                sliderInput("count", "Count", min = 1, max = 500, value = 120)
-              ),
-              box(
-                title = "Appearance",
-                width = 4, solidHeader = TRUE,
-                radioButtons("fill", "Fill", # inline = TRUE,
-                             c(None = "none", Blue = "blue", Black = "black", red = "red")
-                )
-              ),
-              box(
-                title = "Scatterplot control",
-                width = 4, solidHeader = TRUE, status = "warning",
-                selectInput("spread", "Spread",
-                            choices = c("0%" = 0, "20%" = 20, "40%" = 40, "60%" = 60, "80%" = 80, "100%" = 100),
-                            selected = "60"
-                )
-              )
-            )
-    ) # end tab item temps
+    
   )
 )
 
@@ -751,42 +805,339 @@ server <- function(input, output, session) {
   ######################################################################
   ## Ankur
   
-  output$summarytable <- DT::renderDataTable({
+    parks_sub <-  reactive({
+      
+      subset <- subset(parks.subset, Zip_Code == input$zipcode) 
+    })
     
-    parks <- park_data %>%
-      select(Park_Name, Park_Type, Zip_Code, Address, Lat, Lon) %>%
-      filter(Zip_Code == input$zipcode)
-    DT::datatable(parks)
-  }) # end summarytable
-  
-  #### TEMPLATE REUSE - DELETE LATER
-  set.seed(122)
-  histdata <- rnorm(500)
-  
-  output$plot1 <- renderPlot({
-    if (is.null(input$count) || is.null(input$fill))
-      return()
+    school_sub <-  reactive({
+      
+      subset <- subset(dataSchool(), Zip_Code == input$zipcode) 
+    })
     
-    data <- histdata[seq(1, input$count)]
-    color <- input$fill
-    if (color == "none")
-      color <- NULL
-    hist(data, col = color, main = NULL)
-  })
+    business_sub2 <-  reactive({
+      
+      subset <- subset(business_sub, Zip_Code == input$zipcode) 
+    })
+    
+    abandoned_sub2 <-  reactive({
+      
+      subset <- subset(abandoned_sub, Zip_Code == input$zipcode) 
+    })
+    
+    output$summarytable <- DT::renderDataTable({
+      
+      parks_sub2 <- parks_sub() %>% select(-c(Lat, Lon, id, Zip_Code))
+      
+      DT::datatable(parks_sub2, selection="single", options=list(stateSave=TRUE, "pageLength"=5), filter="top") 
+      
+    }) # end summarytable
+    
+    output$summarytable2 <- DT::renderDataTable({
+      
+      data_sch <- dataSchool() %>% select (-c(popup, OBJECTID, Zip_Code, id)) %>%
+        st_set_geometry(NULL)
+      
+      DT::datatable(data_sch, selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) %>% formatStyle(
+        'School', backgroundColor= styleInterval(3.4, c('gray','yellow'))
+      )
+    }) # end summarytable2
+    
+    output$ethnicitytable <- DT::renderDataTable({
+      
+      zipone_sub <- zipOne() %>% select(-c(Zip_Code, Totals))
+      
+      DT::datatable(zipone_sub, selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
+      
+    }) # end ethnicity table
+    
+    output$householdtable <- DT::renderDataTable({
+      
+      ziptwo_sub <- zipTwo() %>% select(-c(Zip_Code))
+      
+      DT::datatable(ziptwo_sub, selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
+      
+    }) # end household table
+    
+    output$agetable <- DT::renderDataTable({
+      
+      # ziptwo_sub <- zipTwo() %>% select(-c(ypos_prop))
+      
+      DT::datatable(age_zip(), selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
+      
+    }) # end age table
+    
+    output$gendertable <- DT::renderDataTable({
+      
+      fm_zip_sub <- fm_zip() # %>% select(-c(ypos_prop))
+      
+      DT::datatable(fm_zip_sub, selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
+      
+    }) # end gender table
+    
+    # to keep track of previously selected row
+    
+    prev_row <- reactiveVal()
+    prev_row2 <- reactiveVal() # to track schools
+    
+    # new icon style
+    my_icon = makeAwesomeIcon(icon = 'flag', markerColor = 'red', iconColor = 'white')
+    my_icon2 = makeAwesomeIcon(icon = 'flag', markerColor = 'green', iconColor = 'blue')
+    # for parks
+    
+    observeEvent(input$summarytable_rows_selected, {
+      row_selected = parks_sub()[input$summarytable_rows_selected,]
+      proxy <- leafletProxy('x2')
+      print(row_selected)
+      proxy %>%
+        addAwesomeMarkers(popup=row_selected$Park_Name,
+                          layerId = as.character(row_selected$id),
+                          lng=row_selected$Lon, 
+                          lat=row_selected$Lat,
+                          icon = my_icon)
+      
+      # Reset previously selected marker
+      if(!is.null(prev_row()))
+      {
+        proxy %>%
+          addMarkers(popup=prev_row()$Park_Name, 
+                     layerId = as.character(prev_row()$id),
+                     lng=prev_row()$Lon, 
+                     lat=prev_row()$Lat
+          )
+      }
+      # set new value to reactiveVal 
+      prev_row(row_selected)
+    })
+    
+    observeEvent(input$summarytable2_rows_selected, {
+      row_selected = school_sub()[input$summarytable2_rows_selected,]
+      proxy <- leafletProxy('x2')
+      print(row_selected)
+      proxy %>%
+        addPolygons(data=school_sub(), popup=row_selected$School,
+                    layerId = as.character(row_selected$id),
+                    highlightOptions = highlightOptions(color = "white",
+                                                        weight = 2,
+                                                        bringToFront = TRUE))
+      
+      # Reset previously selected marker
+      if(!is.null(prev_row2()))
+      {
+        proxy %>%
+          addPolygons(data=school_sub(), popup=prev_row2()$School, 
+                      layerId = as.character(prev_row()$id)
+                      
+          )
+      }
+      # set new value to reactiveVal 
+      prev_row2(row_selected)
+    })
+    
+    
+    output$x2 <- renderLeaflet({
+      
+      pal <- colorFactor(palette = 'Set1', domain =parks_sub()$Park_Name)
+      
+      leaflet()  %>%
+        addTiles()  %>%
+        # Add markers for Parks
+        addMarkers(data = parks_sub(),
+                   popup = ~Park_Name,
+                   layerId=as.character(parks_sub()$id),
+                   #                #stroke = F,
+                   #                 #fillOpacity = 0.8,
+                   #                #radius=8,
+                   group = "Parks") %>%
+        
+        
+        
+        
+        # Add legend for Parks
+        addLegend(data = parks_sub(),
+                  labels = "Parks",
+                  colors = 'steelblue',
+                  opacity = 1,
+                  group = "Parks") %>%
+        
+        # Add outline for schools
+        addPolygons(data = dataSchool(),
+                    popup = ~popup,
+                    color = '#CC6666',
+                    opacity = 0.5,
+                    fillOpacity = 0.5,
+                    group = "Schools") %>%
+        
+        # Add legend for Schools
+        addLegend(data = dataSchool(),
+                  labels = "Schools",
+                  colors = '#CC6666',
+                  opacity = 0.5,
+                  group = "Schools") %>%
+        
+        # Add layer control
+        addLayersControl(overlayGroups = c("Parks", "Schools"),
+                         options = layersControlOptions(collapsed = F)) 
+      
+      
+      
+      
+    })
+    
+    observeEvent(input$x2_marker_click, {
+      clickId <- input$x2_marker_click$id
+      dataTableProxy("summarytable") %>%
+        selectRows(which(parks_sub()$id == clickId)) %>%
+        selectPage(which(input$summarytable_rows_all == clickId) %/% input$summarytable_state$length + 1)
+    })
+    
+    observeEvent(input$x2_marker_click, {
+      clickId <- input$x2_marker_click$id
+      dataTableProxy("summarytable2") %>%
+        selectRows(which(school_sub()$id == clickId)) %>%
+        selectPage(which(input$summarytable2_rows_all == clickId) %/% input$summarytable2_state$length + 1)
+    })
+    
+    #### Events for Business Summary tabs.
+    
+    output$business_summary <- DT::renderDataTable({
+      
+      business_table <- business_sub2() %>%
+        select(-c(X,Y,City, State,Zip_Code,  id))
+      
+      DT::datatable(business_table, selection="single", options=list(stateSave=TRUE, "pageLength"=5), filter="top") 
+      
+    }) # end summarytable
+    
+    output$abandoned_summary <- DT::renderDataTable({
+      
+      abandoned_table<- abandoned_sub2() %>% select (-c(popup, Zip_Code, id)) %>%
+        st_set_geometry(NULL)
+      
+      DT::datatable(abandoned_table, selection="single", filter="top", options=list(stateSave=TRUE,"pageLength"=5)) 
+      
+    }) # end summarytable2
+    
+    # to keep track of previously selected row
+    
+    prev_row3 <- reactiveVal()
+    prev_row4 <- reactiveVal() # to track abandoned
+    
+    # new icon style
+    my_icon3 = makeAwesomeIcon(icon = 'flag', markerColor = 'red', iconColor = 'white')
+    my_icon4 = makeAwesomeIcon(icon = 'flag', markerColor = 'green', iconColor = 'blue')
+    # for parks
+    
+    observeEvent(input$business_summary_rows_selected, {
+      row_selected = business_sub2()[input$business_summary_rows_selected,]
+      proxy <- leafletProxy('x3')
+      print(row_selected)
+      proxy %>%
+        addAwesomeMarkers(popup=row_selected$Business_N,
+                          layerId = as.character(row_selected$id),
+                          lng=row_selected$X, 
+                          lat=row_selected$Y,
+                          icon = my_icon3)
+      
+      # Reset previously selected marker
+      if(!is.null(prev_row3()))
+      {
+        proxy %>%
+          addMarkers(popup=prev_row3()$Business_N, 
+                     layerId = as.character(prev_row3()$id),
+                     lng=prev_row3()$X, 
+                     lat=prev_row3()$Y
+          )
+      }
+      # set new value to reactiveVal 
+      prev_row3(row_selected)
+    })
+    
+    observeEvent(input$abandoned_summary_rows_selected, {
+      row_selected = abandoned_sub2()[input$abandoned_summary_rows_selected,]
+      proxy <- leafletProxy('x2')
+      print(row_selected)
+      proxy %>%
+        addPolygons(data=abandoned_sub2(), popup=row_selected$Street_Nam,
+                    layerId = as.character(row_selected$id),
+                    highlightOptions = highlightOptions(color = "white",
+                                                        weight = 2,
+                                                        bringToFront = TRUE))
+      
+      # Reset previously selected marker
+      if(!is.null(prev_row4()))
+      {
+        proxy %>%
+          addPolygons(data=abandoned_sub2(), popup=prev_row4()$Street_Nam, 
+                      layerId = as.character(prev_row4()$id)
+                      
+          )
+      }
+      # set new value to reactiveVal 
+      prev_row4(row_selected)
+    })
+    
+    
+    output$x3 <- renderLeaflet({
+      leaflet() %>% 
+        
+        addTiles() %>% 
+        
+        # User CartoDB.Position tile for easy view
+        addProviderTiles(providers$CartoDB.Positron)  %>% 
+        
+        # Add markers for business
+        addCircleMarkers(data = business_zip(),
+                         popup = ~popup,
+                         stroke = F,
+                         fillOpacity = 0.8,
+                         radius=3,
+                         group = "Business") %>%
+        
+        # Add legend for business
+        addLegend(data = business_zip(),
+                  labels = "Businesess",
+                  colors = 'steelblue',
+                  opacity = 1,
+                  group = "Business") %>%
+        
+        # Add outline for abandoned properties
+        addPolygons(data = abandoned_zip(),
+                    popup = ~popup,
+                    color = '#CC6666',
+                    opacity = 0.5,
+                    fillOpacity = 0.5,
+                    group = "Abandoned Property") %>%
+        
+        # Add legend for abandoned properties
+        addLegend(data = abandoned_zip(),
+                  labels = "Abandoned Properties",
+                  colors = '#CC6666',
+                  opacity = 0.5,
+                  group = "Abandoned Property") %>%
+        
+        # Add layer control
+        addLayersControl(overlayGroups = c("Business", "Abandoned Property"),
+                         options = layersControlOptions(collapsed = F)) 
+      
+    }) #end x3
+    
+    observeEvent(input$x3_marker_click, {
+      clickId <- input$x3_marker_click$id
+      dataTableProxy("business_summary") %>%
+        selectRows(which(business_sub2()$id == clickId)) %>%
+        selectPage(which(input$business_summary_rows_all == clickId) %/% input$business_summary_state$length + 1)
+    })
+    
+    observeEvent(input$x3_marker_click, {
+      clickId <- input$x3_marker_click$id
+      dataTableProxy("abandoned_summary") %>%
+        selectRows(which(abandoned_sub2()$id == clickId)) %>%
+        selectPage(which(input$abandoned_summary_rows_all == clickId) %/% input$abandoned_summary_state$length + 1)
+    })
+    
   
-  output$scatter1 <- renderPlot({
-    spread <- as.numeric(input$spread) / 100
-    x <- rnorm(1000)
-    y <- x + rnorm(1000) * spread
-    plot(x, y, pch = ".", col = "blue")
-  })
-  
-  output$scatter2 <- renderPlot({
-    spread <- as.numeric(input$spread) / 100
-    x <- rnorm(1000)
-    y <- x + rnorm(1000) * spread
-    plot(x, y, pch = ".", col = "red")
-  })
+ 
 
   
 } # end server
