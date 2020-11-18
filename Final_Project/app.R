@@ -96,10 +96,6 @@ totals <- popAggregate %>% group_by(Zip_Code) %>%summarise(Totals = sum(Total))
 popAggregate <- left_join(popAggregate, totals, by = "Zip_Code")
 
 # calculate percent of each race
-popAgregate <- popAgregate%>%mutate(percent = round(Total/Totals*100))
-
-popAgregate$Race <- as.factor(popAgregate$Race)
-
 popAggregate <- popAggregate%>%mutate(percent = round(Total/Totals*100))
 
 
