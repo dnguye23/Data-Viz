@@ -460,9 +460,9 @@ server <- function(input, output, session) {
     })
     
     # filter data based on school type selection
-    dataSchool <- eventReactive(input$stype, {
-      return(zipSchool()%>%filter(SchoolType == input$stype))
-    })
+    #dataSchool <- eventReactive(input$stype, {
+    #  return(zipSchool()%>%filter(SchoolType == input$stype))
+    #})
     
     zipParks <- eventReactive(input$zipcode, {
       return(park_data[park_data$Zip_Code == input$zipcode,])
