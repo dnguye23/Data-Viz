@@ -121,6 +121,10 @@ totals <- popAggregate %>% group_by(Zip_Code) %>%summarise(Totals = sum(Total))
 popAggregate <- left_join(popAggregate, totals, by = "Zip_Code")
 
 # calculate percent of each race
+
+popAgregate <- popAgregate%>%mutate(percent = round(Total/Totals*100))
+
+
 popAggregate <- popAggregate%>%mutate(percent = round(Total/Totals*100))
 
 
@@ -137,10 +141,6 @@ households <- households%>%select(-c("SE_T058_00", "SE_T058_06",
 # set names for new columns
 names(households) <- c("Married", "Male Householder", "Female Householder",
                        "Living Alone", "Not Living Alone", "Zip_Code" )
-
-
-############################################################################
-#=======
 
 # gather data
 households <- households%>%gather(key = householdType, value = total, -Zip_Code)
@@ -286,14 +286,16 @@ header <- dashboardHeader(
 
 filter_s <- selectInput(inputId = "zipcode", 
                         label = "Choose Zip Code",
-                        # choices = business_spatial$Zip_Code,
-                        choices = sort(unique(c(unique(park_data$Zip_Code),
-                                           unique(business_spatial$Zip_Code),
-                                           unique(abandoned_spatial$Zip_Code),
-                                           unique(school_data$Zip_Code),
-                                           unique(popAggregate$Zip_Code),
-                                           unique(householdsAggregate$Zip_Code),
-                                           unique(householdsFamily$Zip_Code)))),
+
+                        #choices = business_spatial$Zip_Code,
+                         choices = sort(unique(c(unique(park_data$Zip_Code), 
+                                            unique(business_spatial$Zip_Code), 
+                                            unique(abandoned_spatial$Zip_Code),
+                                            unique(school_data$Zip_Code),
+                                            unique(popAggregate$Zip_Code),
+                                            unique(householdsAggregate$Zip_Code),
+                                            unique(householdsFamily$Zip_Code)))), 
+
                         selected=46617
 
 ) # filter Zip Code
@@ -325,28 +327,31 @@ body <- dashboardBody(
   tabItems(
     # Use the template from here for anything you want to add !!
     
-    
-    
     #### EDITH ##################
 
     tabItem("schools",
             fluidRow(
+              
+            # create map box  
             box( height = 515,
                  title = "Schools and Parks",
                  status="warning", solidHeader = TRUE,
                  leafletOutput(outputId = "map"),
                 ), # end box
-
+            
+            # create selection box
             box(height = 175,
+              # create school type selection  
               selectInput(inputId = "stype",
                           label = "Select School Type:",
                           choices = c("Private", "Public")),
-
+              
+              # create park type selection
               selectInput(inputId = "ptype",
                           label = "Select Park Type:",
                           choices = types)
               ),
-
+            # create donut chart box
             tabBox(height  = 300,
                    tabPanel("Family Type",
                              plotOutput(outputId = "donut", height = 250)
@@ -354,19 +359,19 @@ body <- dashboardBody(
               )
 
             ),
-
+            
             fluidRow(
-
+              # create ethnicity distribution box
               tabBox(height = 455,
                      tabPanel("Ethnicity Distribution",
-                              plotOutput(outputId = "barTwo", height = 400)
+                              plotOutput(outputId = "barOne", height = 400)
                      )
               ),
-
+              # create household distribution box
               tabBox(
                 height = 455,
                 tabPanel("Household Distribution",
-                         plotOutput(outputId = "barOne", height = 400)
+                         plotOutput(outputId = "barTwo", height = 400)
                 )
               )
             )
@@ -508,42 +513,43 @@ ui <- shinyUI(
   
 )
 
-server <- function(input, output, session) {
+server <- function(input, output) {
   ## Edith
-#<<<<<<< HEAD
   
-    # filter data based on park type selection
 
-    zipSchool <- eventReactive(input$zipcode,{
-      return(school_data[school_data$Zip_Code == input$zipcode,])
+    # return school data based on inputs
+    dataSchool <- eventReactive(list(input$zipcode, input$stype), {
+               return(school_data%>%
+                        filter(school_data$Zip_Code==input$zipcode, 
+                               school_data$SchoolType==input$stype))
     })
-
-    # filter data based on school type selection
-    dataSchool <- eventReactive(input$stype, {
-      return(zipSchool()%>%filter(SchoolType == input$stype))
+    
+    # return park data based on inputs
+    dataParks <- eventReactive(c(input$zipcode, input$ptype),{
+                  return(park_data%>%
+                         filter(park_data$Zip_Code == input$zipcode, 
+                                park_data$Park_Type == input$ptype))
+      
     })
-
-    zipParks <- eventReactive(input$zipcode, {
-      return(park_data[park_data$Zip_Code == input$zipcode,])
-    })
-
-    dataParks <- eventReactive(input$ptype, {
-      return(zipParks()%>%filter(Park_Type == input$ptype))
-
-    })
-
+    
+    # return population data based on inputs
     zipOne <- eventReactive(input$zipcode, {
-           return(popAggregate%>%filter(Zip_Code == input$zipcode))
+           return(popAggregate%>%
+                    filter(Zip_Code == input$zipcode))
 
     })
-
+    
+    # return household data based on input
     zipTwo <- eventReactive(input$zipcode, {
-      return(householdsAggregate%>%filter(Zip_Code == input$zipcode))
+      return(householdsAggregate%>%
+               filter(Zip_Code == input$zipcode))
 
     })
 
+    # return household data based on input
     zipThree <- eventReactive(input$zipcode, {
-      return(householdsFamily%>%filter(Zip_Code == input$zipcode))
+      return(householdsFamily%>%
+               filter(Zip_Code == input$zipcode))
     })
 
     # output the school type and park type
@@ -553,8 +559,9 @@ server <- function(input, output, session) {
                 addPolygons(data = dataSchool(), popup = ~popup) %>%
                 addMarkers(data = dataParks(), popup = ~popup)
     })
-
-    output$barOne <- renderPlot({
+    
+    # plot household distribution
+    output$barTwo <- renderPlot({
                      zipTwo()%>%
                      ggplot(aes(fct_reorder(householdType, totals), totals, fill = FamNonFam)) +
                      geom_bar(stat = "identity") +
@@ -565,32 +572,36 @@ server <- function(input, output, session) {
                                position = position_dodge(0.90), angle = -90)+
                      theme(axis.text.x = element_blank()) +
                      theme(axis.ticks.x = element_blank()) +
+                     theme(text = element_text(size=15)) +
                      xlab("") +
                      ylab("") +
                      theme(legend.position  = "none")+
                      coord_flip()
     })
-
-    output$barTwo <- renderPlot({
+    
+    # plot ethnicity distribution
+    output$barOne <- renderPlot({
                      zipOne()%>%
                      ggplot(aes(fct_reorder(Race, percent), percent)) +
-                     geom_bar(stat = "identity", fill = "#f0c188", alpha = 0.6) +
+                     geom_bar(stat = "identity", fill = "#CCEBC5", alpha = 0.6) +
                      theme(panel.background = element_blank()) +
                      theme(axis.line.y = element_line(colour = "black")) +
                      geom_text(aes(label = paste0(percent,"%"), vjust = -.2, hjust = "center"),
                      position = position_dodge(0.90), angle = -90)+
                      theme(axis.text.x = element_blank()) +
                      theme(axis.ticks.x = element_blank()) +
+                     theme(text = element_text(size=15)) +
                      xlab("") +
                      ylab("") +
-                     coord_flip()
+                     coord_flip() 
     })
-
+    
+    # create donut chart
     output$donut <- renderPlot({
                       zipThree()%>%ggplot(aes(ymax=ymax, ymin=ymin, xmax=10, xmin=2, fill=FamNonFam)) +
                       geom_rect() +
                       geom_label(x=5, aes(y=labelPositions,
-                                          label=label), size=4, color = "white") +
+                                          label=label), size=5, color = "white") +
                       scale_fill_brewer(palette = "Pastel1") +
                       coord_polar(theta = "y") +
                       xlim(c(-10, 10)) +
@@ -697,7 +708,6 @@ server <- function(input, output, session) {
     ## Switch between population and proportion 
     age_graph <- reactive({
       switch(input$age_choice,
-             
              prop = plot_ly(age_zip(), x = ~age_range, y = ~prop, type = 'bar', color = I("#9999CC"),
                             text = ~paste("Age Range:", age_range, "<br>","Percentage:",prop, "%"),
                             hoverinfo = 'text') %>%  
@@ -724,7 +734,7 @@ server <- function(input, output, session) {
                                          titlefont = list(size = 13,
                                                           color ="navy"),
                                          tickfont = list (size = 12,
-                                                          color = "navy")),
+                                          color = "#9999CC")),
                              bargap = 0.3)  
        
       }) # end age_plot
@@ -759,6 +769,7 @@ server <- function(input, output, session) {
     ## Switch between population and proportion
     value_choice <- reactive({
       switch(input$fm_choice,
+
              pop = "label+value",
              prop = "label+percent"
             ) # end switch
@@ -1141,7 +1152,6 @@ server <- function(input, output, session) {
 
   
 } # end server
-
 
 # Run the application 
 shinyApp(ui = ui, server = server)
