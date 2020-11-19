@@ -449,7 +449,7 @@ body <- dashboardBody(
               
               box(
                 title = "Businesses and Abandoned Properties Map", solidHeader = T, width = 10,
-                leafletOutput(outputId = "bus_map")
+                uiOutput(outputId = "map_or_warning")
                 
               )  # end box
               
@@ -759,6 +759,21 @@ server <- function(input, output) {
     
   }) #end bus_map
   
+  # Create warning
+  output$bus_warning <- renderText({
+    paste("Data not avaialable for selected Zip Code.")
+  }) # end map warning
+  
+  # Output map or warning
+  output$map_or_warning <- renderUI({
+    if (input$zipcode %in% business_zip() | input$zipcode %in% abandoned_zip()) {
+      leafletOutput("bus_map")
+    }
+    else{
+      textOutput('bus_warning')
+    }
+  })
+  
   #### BAR GRAPH FOR AGE DISTRIBUTION
   ## Subset age data based on zip code
   age_zip <- reactive({
@@ -805,7 +820,7 @@ server <- function(input, output) {
   }) # end age_plot
   
   output$age_warning <- renderText({
-    paste("Age data not avaialable for Zip Code ", input$zipcode, ".")
+    paste("Data not avaialable for selected Zip Code.")
   }) # end age_warning
   
   output$age_plot_or_warning <- renderUI({
@@ -863,7 +878,7 @@ server <- function(input, output) {
   }) # end gender_plot
   
   output$gender_warning <- renderText({
-    paste("Gender data no available for Zip Code ", input$zipcode, ".")
+    paste("Data not avaialable for selected Zip Code.")
   })# end gender_warning
   
   output$gender_plot_or_warning <- renderUI({
