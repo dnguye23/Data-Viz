@@ -9,7 +9,7 @@ output:
 ---
 
 
-<font size = "6" color = ""#1975d1""> SOUTH BEND DASHBOARD </font>
+<font size = "6" color = "#1975d1""> SOUTH BEND DASHBOARD </font>
 
 <font size="5" color="red"> The goal of this project is to  create a dashboard to show the location and related data to the parks, schools, businesses and abandoned properties in South Bend. </font> 
 <br>
