@@ -263,7 +263,7 @@ pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
 
 business_sub <- business_points %>%
   select(c(1:11))
-
+# Clean zip code
 business_sub$Zip_Code <- business_spatial$Zip_Code
 
 abandoned_sub <- abandoned_spatial
@@ -324,9 +324,11 @@ business_sub$id <- seq.int(nrow(business_sub))
 
 abandoned_sub$id <- seq.int(nrow(abandoned_sub))
 
+# Add classify
 business_spatial$classify <- business_sub$classify
 
-test = business_spatial %>% filter(Zip_Code == 46617, str_detect(str_to_lower(classify), ".*other.*"))
+# sort unique business types
+bus_type = sort(unique(business_spatial$classify))
 
 ############################################################################
 
@@ -438,28 +440,8 @@ body <- dashboardBody(
               box(width = 2, 
                   selectInput(inputId = "bus_type",
                                label = "Choose Business Type",
-                               choices = c("All" = 'all', 
-                                           "Restaurant/Food Services" = "resto", 
-                                           "Parking" = 'parking', 
-                                           "Massage/Tatoo Parlors" = 'massage',
-                                           "Outdoor Venues" = 'outdoor', 
-                                           "Pet" = 'pet', 
-                                           "Charity" = 'donation', 
-                                           "Auto Repairs" = "car",
-                                           "Taxi" = "cab",
-                                           "Hotel" = 'hotel',
-                                           "Peddler" = "ped",
-                                           "Transient Merchant" = 'trans',
-                                           "Security Company" = 'alarm',
-                                           "Arborist" = 'aborist',
-                                           "Garbage Removal" = 'trash',
-                                           "Metal Dealers" = 'metal',
-                                           "Towing Company" = 'tow',
-                                           "Laundromat" = 'laundry',
-                                           "Second Hand Dealers" = "second",
-                                           "Adult Business" = 'adult',
-                                           "Others" = 'other'),
-                               selected = "all")
+                               choices = c('All', bus_type),
+                               selected = "All")
               ), # end box
               
               box(
@@ -695,8 +677,14 @@ server <- function(input, output) {
   
   #### MAP for BUSINESS AND ABANDONED LOTS
   ## Subset business and abandoned data based on zip code input
-  business_zip <- reactive({
-    business_spatial %>% filter(Zip_Code == input$zipcode)
+  business_zip <- eventReactive(c(input$zipcode, input$bus_type),{
+    if (input$bus_type == "All") {
+      return(business_spatial %>% filter(Zip_Code == input$zipcode))
+    }
+    else{
+      return(business_spatial %>% filter(Zip_Code == input$zipcode, classify == input$bus_type))
+    }
+    
   })
     
   
@@ -704,53 +692,7 @@ server <- function(input, output) {
     abandoned_spatial %>% filter(Zip_Code == input$zipcode)
   })
   
-  business_filter <- reactive({
-    switch(input$bus_type,
-           
-           all = business_zip(),
-           
-           resto = business_zip() %>% filter(str_detect(str_to_lower(classify), "resta.*")),
-           
-           parking = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*park.*")),
-           
-           massage = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*massage.*")),
-           
-           outdoor = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*outdoor.*")),
-           
-           pet = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*pet.*")),
-           
-           donation = business_zip() %>% filter(str_detect(str_to_lower(classify), "charity")),
-           
-           car = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*auto.*")),
-           
-           cab = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*taxi.*")),
-           
-           hotel = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*hotel.*")),
-           
-           ped = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*peddler.*")),
-           
-           trans = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*transient.*")),
-           
-           alarm = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*security.*")),
-           
-           aborist = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*arborist.*")),
-           
-           trash = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*garbage.*")),
-           
-           metal = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*metal.*")),
-           
-           tow = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*tow.*")),
-           
-           laundry = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*laundr.*")),
-           
-           second = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*second.*")),
-           
-           adult = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*adult.*")),
-           
-           other = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*other.*"))
-    ) #end switch
-  })
-  
+ 
   # Create map
   output$bus_map <- renderLeaflet({
     leaflet() %>% 
@@ -761,7 +703,7 @@ server <- function(input, output) {
       addProviderTiles(providers$CartoDB.Positron)  %>% 
       
       # Add markers for business
-      addCircleMarkers(data = business_filter(),
+      addCircleMarkers(data = business_zip(),
                        popup = ~popup,
                        stroke = F,
                        fillOpacity = 0.8,
@@ -770,7 +712,7 @@ server <- function(input, output) {
                        group = "Business") %>%
       
       # Add legend for business
-      addLegend(data = business_filter(),
+      addLegend(data = business_zip(),
                 labels = "Business",
                 colors = '#1975d1',
                 opacity = 1,
