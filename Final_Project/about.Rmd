@@ -18,6 +18,6 @@ output:
 <font size="5" color="black"> The team hopes the dashboard can help users gain more information about the city and make informative decisions regarding residence and business. </font>  
 
 <font size="5" color="#1975d1"> Project Team Members: </font> <br>
-<font size="3" color="#1975d1"><li> Ankur Sharma </li>
+<font size="3" color="#1975d1"> <li> Ankur Sharma </li>
 <li> Dana Nguyen </li>
 <li> Edith Castro Bravo </li></font> <br>
