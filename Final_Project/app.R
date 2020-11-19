@@ -257,9 +257,8 @@ age_level <- c("under_5", "5-9","10-14","15-17", "18-24", "25-34",
 
 pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
 
+########################################################################################
 # Ankur Added for summary table ###
-
-
 # subset data
 
 business_sub <- business_points %>%
@@ -323,6 +322,14 @@ business_sub$id <- seq.int(nrow(business_sub))
 
 abandoned_sub$id <- seq.int(nrow(abandoned_sub))
 
+sort(unique(c(unique(park_data$Zip_Code), 
+              unique(business_spatial$Zip_Code), 
+              unique(abandoned_spatial$Zip_Code),
+              unique(school_data$Zip_Code),
+              unique(popAggregate$Zip_Code),
+              unique(householdsAggregate$Zip_Code),
+              unique(householdsFamily$Zip_Code)))) 
+
 ############################################################################
 
 ### Ankur
@@ -333,8 +340,6 @@ header <- dashboardHeader(
 
 filter_s <- selectInput(inputId = "zipcode", 
                         label = "Choose Zip Code",
-                        
-                        #choices = business_spatial$Zip_Code,
                         choices = sort(unique(c(unique(park_data$Zip_Code), 
                                                 unique(business_spatial$Zip_Code), 
                                                 unique(abandoned_spatial$Zip_Code),
@@ -381,8 +386,8 @@ body <- dashboardBody(
               
               # create map box  
               box( height = 515,
-                   title = "Schools and Parks",
-                   status="warning", solidHeader = TRUE,
+                   title = "Schools and Parks Map",
+                   solidHeader = TRUE,
                    leafletOutput(outputId = "map"),
               ), # end box
               
@@ -443,8 +448,7 @@ body <- dashboardBody(
               ), # end box
               
               box(
-                title = "Map", solidHeader = T, width = 10,
-                status = "warning",
+                title = "Businesses and Abandoned Properties Map", solidHeader = T, width = 10,
                 leafletOutput(outputId = "bus_map")
                 
               )  # end box
@@ -453,7 +457,7 @@ body <- dashboardBody(
             
             fluidRow(
               box(
-                title = "Population Distribution by Age Range", status="primary",solidHeader = T, width = 6,
+                title = "Population Distribution by Age Range", solidHeader = T, width = 6,
                 radioButtons(inputId = "age_choice", label = "",
                              choices = c("Population Percentage" = "prop", "Population Value" = "pop" ),
                              selected = "prop"),
@@ -461,7 +465,7 @@ body <- dashboardBody(
               ), # end box
               
               box(
-                title = "Population Distribution by Gender", status="primary", solidHeader = T, width = 6,
+                title = "Population Distribution by Gender", solidHeader = T, width = 6,
                 radioButtons(inputId = "fm_choice", label = "",
                              choices = c("Population Percentage" = "prop", "Population Value" = "pop"),
                              selected = "prop"),
@@ -477,8 +481,8 @@ body <- dashboardBody(
     tabItem("park_table",
             fluidRow(
               box(
-                title = "Map based on Data Selection ( Parks and Schools)", width=6,
-                status="warning", solidHeader = TRUE, collapsible = TRUE,
+                title = "Map based on Data Selection (Parks and Schools)", width=6,
+                solidHeader = TRUE, collapsible = TRUE,
                 leafletOutput('x2', height=500)
               ), # end box
               tabBox(
@@ -495,11 +499,11 @@ body <- dashboardBody(
             ), # end fluidRow
             fluidRow(
               box(
-                title = "Ethnicity Data", width=6,status="primary", solidHeader = TRUE,
+                title = "Ethnicity Data", width=6, solidHeader = TRUE,
                 DT::dataTableOutput("ethnicitytable")
               ),
               box(
-                title = "Household Data", width=6,status="primary", solidHeader = TRUE,
+                title = "Household Data", width=6, solidHeader = TRUE,
                 DT::dataTableOutput("householdtable")
               )
             ),# end box
@@ -508,8 +512,8 @@ body <- dashboardBody(
     
     tabItem("business_table",
             fluidRow(
-              box(status="warning", solidHeader = TRUE, collapsible = TRUE,
-                  title = "Map based on Data Selection ( Businesses and Abandoned Properties)", width=6,
+              box(solidHeader = TRUE, collapsible = TRUE,
+                  title = "Map based on Data Selection (Businesses and Abandoned Properties)", width=6,
                   leafletOutput('x3', height=400)
               ), # end box
               tabBox(
@@ -1226,14 +1230,15 @@ server <- function(input, output) {
       addCircleMarkers(data = business_zip(),
                        popup = ~popup,
                        stroke = F,
+                       color = "#1975d1",
                        fillOpacity = 0.8,
-                       radius=3,
+                       radius = 3.2,
                        group = "Business") %>%
       
       # Add legend for business
       addLegend(data = business_zip(),
                 labels = "Businesess",
-                colors = 'steelblue',
+                colors = "#1975d1",
                 opacity = 1,
                 group = "Business") %>%
       
