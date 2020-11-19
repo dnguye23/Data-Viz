@@ -259,8 +259,6 @@ pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
 
 ########################################################################################
 # Ankur Added for summary table ###
-
-
 # subset data
 
 business_sub <- business_points %>%
