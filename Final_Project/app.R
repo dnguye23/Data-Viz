@@ -687,7 +687,6 @@ server <- function(input, output) {
     
   })
     
-  
   abandoned_zip <- reactive({
     abandoned_spatial %>% filter(Zip_Code == input$zipcode)
   })
@@ -815,7 +814,6 @@ server <- function(input, output) {
   ## Switch between population and proportion
   value_choice <- reactive({
     switch(input$fm_choice,
-           
            pop = "label+value",
            prop = "label+percent"
     ) # end switch
