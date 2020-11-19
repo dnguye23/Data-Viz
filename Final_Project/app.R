@@ -46,7 +46,6 @@ get_zipcode <- function(df, crs) {
               return(zip_data)
 }
 
-
 # get zip code for school data
 school_data <- get_zipcode(school_data, 4326)
 
@@ -485,6 +484,7 @@ server <- function(input, output) {
 
     })
     
+    
     # return household data based on input
     zipTwo <- eventReactive(input$zipcode, {
       return(householdsAggregate%>%
@@ -508,6 +508,9 @@ server <- function(input, output) {
     
     # plot household distribution
     output$barTwo <- renderPlot({
+                    validate(
+                     need(nrow(zipTwo())>0, "No data available for selected zip code")
+                      )
                      zipTwo()%>%
                      ggplot(aes(fct_reorder(householdType, totals), totals, fill = FamNonFam)) +
                      geom_bar(stat = "identity") +
@@ -527,6 +530,9 @@ server <- function(input, output) {
     
     # plot ethnicity distribution
     output$barOne <- renderPlot({
+                     validate(
+                       need(nrow(zipOne())>0, "No data available for selected zip code")
+                     )
                      zipOne()%>%
                      ggplot(aes(fct_reorder(Race, percent), percent)) +
                      geom_bar(stat = "identity", fill = "#CCEBC5", alpha = 0.6) +
@@ -544,6 +550,9 @@ server <- function(input, output) {
     
     # create donut chart
     output$donut <- renderPlot({
+                      validate(
+                      need(nrow(zipThree())>0, "No data available for selected zip code")
+                      )
                       zipThree()%>%ggplot(aes(ymax=ymax, ymin=ymin, xmax=10, xmin=2, fill=FamNonFam)) +
                       geom_rect() +
                       geom_label(x=5, aes(y=labelPositions,
