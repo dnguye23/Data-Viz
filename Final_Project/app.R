@@ -1174,7 +1174,7 @@ server <- function(input, output) {
                                "pageLength"=30, 
                                dom='Bfrtip', 
                                buttons=c('copy','csv','excel','pdf','print')
-                  ), filter="top") 
+                  ), filter="bottom") 
     
   }) # end business table
   
@@ -1194,7 +1194,7 @@ server <- function(input, output) {
                                scroller=TRUE,
                                dom='Bfrtip', 
                                buttons=c('copy','csv','excel','pdf','print')
-                  ), filter="top") 
+                  ), filter="bottom") 
   }) # end abandoned table
   
   # to keep track of previously selected row
