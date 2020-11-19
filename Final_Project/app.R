@@ -46,7 +46,6 @@ get_zipcode <- function(df, crs) {
   return(zip_data)
 }
 
-
 # get zip code for school data
 school_data <- get_zipcode(school_data, 4326)
 
@@ -214,7 +213,6 @@ abandoned_spatial$popup <- paste('<b>', abandoned_spatial$Property_S, "</b><br>"
                                  "Structure Type: ", abandoned_spatial$Structures, sep="")
 
 
-
 # Subset data for gender
 census_fm <- census_data %>% select(SE_T003_01, SE_T003_02, geometry)
 
@@ -261,6 +259,7 @@ pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
 
 ########################################################################################
 # Ankur Added for summary table ###
+
 
 # subset data
 
@@ -581,91 +580,102 @@ server <- function(input, output) {
                     school_data$SchoolType==input$stype))
   })
   
-  # return park data based on inputs
-  dataParks <- eventReactive(c(input$zipcode, input$ptype),{
-    return(park_data%>%
-             filter(park_data$Zip_Code == input$zipcode, 
-                    park_data$Park_Type == input$ptype))
+ 
+    # return park data based on inputs
+    dataParks <- eventReactive(c(input$zipcode, input$ptype),{
+                  return(park_data%>%
+                         filter(park_data$Zip_Code == input$zipcode, 
+                                park_data$Park_Type == input$ptype))
+      
+    })
     
-  })
-  
-  # return population data based on inputs
-  zipOne <- eventReactive(input$zipcode, {
-    return(popAggregate%>%
-             filter(Zip_Code == input$zipcode))
+    # return population data based on inputs
+    zipOne <- eventReactive(input$zipcode, {
+           return(popAggregate%>%
+                    filter(Zip_Code == input$zipcode))
+
+    })
     
-  })
-  
-  # return household data based on input
-  zipTwo <- eventReactive(input$zipcode, {
-    return(householdsAggregate%>%
-             filter(Zip_Code == input$zipcode))
     
-  })
-  
-  # return household data based on input
-  zipThree <- eventReactive(input$zipcode, {
-    return(householdsFamily%>%
-             filter(Zip_Code == input$zipcode))
-  })
-  
-  # output the school type and park type
-  output$map <- renderLeaflet({
-    leaflet() %>%
-      addTiles() %>%
-      addPolygons(data = dataSchool(), popup = ~popup) %>%
-      addMarkers(data = dataParks(), popup = ~popup)
-  })
-  
-  # plot household distribution
-  output$barTwo <- renderPlot({
-    zipTwo()%>%
-      ggplot(aes(fct_reorder(householdType, totals), totals, fill = FamNonFam)) +
-      geom_bar(stat = "identity") +
-      theme(panel.background = element_blank()) +
-      theme(axis.line.y = element_line(colour = "black")) +
-      scale_fill_brewer(palette = "Pastel1") +
-      geom_text(aes(label = totals, vjust = -.2, hjust = "center"),
-                position = position_dodge(0.90), angle = -90)+
-      theme(axis.text.x = element_blank()) +
-      theme(axis.ticks.x = element_blank()) +
-      theme(text = element_text(size=15)) +
-      xlab("") +
-      ylab("") +
-      theme(legend.position  = "none")+
-      coord_flip()
-  })
-  
-  # plot ethnicity distribution
-  output$barOne <- renderPlot({
-    zipOne()%>%
-      ggplot(aes(fct_reorder(Race, percent), percent)) +
-      geom_bar(stat = "identity", fill = "#CCEBC5", alpha = 0.6) +
-      theme(panel.background = element_blank()) +
-      theme(axis.line.y = element_line(colour = "black")) +
-      geom_text(aes(label = paste0(percent,"%"), vjust = -.2, hjust = "center"),
-                position = position_dodge(0.90), angle = -90)+
-      theme(axis.text.x = element_blank()) +
-      theme(axis.ticks.x = element_blank()) +
-      theme(text = element_text(size=15)) +
-      xlab("") +
-      ylab("") +
-      coord_flip() 
-  })
-  
-  # create donut chart
-  output$donut <- renderPlot({
-    zipThree()%>%ggplot(aes(ymax=ymax, ymin=ymin, xmax=10, xmin=2, fill=FamNonFam)) +
-      geom_rect() +
-      geom_label(x=5, aes(y=labelPositions,
-                          label=label), size=5, color = "white") +
-      scale_fill_brewer(palette = "Pastel1") +
-      coord_polar(theta = "y") +
-      xlim(c(-10, 10)) +
-      theme_void()+
-      theme(legend.position = "none")
-  })
-  
+    # return household data based on input
+    zipTwo <- eventReactive(input$zipcode, {
+      return(householdsAggregate%>%
+               filter(Zip_Code == input$zipcode))
+
+    })
+
+    # return household data based on input
+    zipThree <- eventReactive(input$zipcode, {
+      return(householdsFamily%>%
+               filter(Zip_Code == input$zipcode))
+    })
+
+    # output the school type and park type
+    output$map <- renderLeaflet({
+                leaflet() %>%
+                addTiles() %>%
+                addPolygons(data = dataSchool(), popup = ~popup) %>%
+                addMarkers(data = dataParks(), popup = ~popup)
+    })
+    
+    # plot household distribution
+    output$barTwo <- renderPlot({
+                    validate(
+                     need(nrow(zipTwo())>0, "No data available for selected zip code")
+                      )
+                     zipTwo()%>%
+                     ggplot(aes(fct_reorder(householdType, totals), totals, fill = FamNonFam)) +
+                     geom_bar(stat = "identity") +
+                     theme(panel.background = element_blank()) +
+                     theme(axis.line.y = element_line(colour = "black")) +
+                     scale_fill_brewer(palette = "Pastel1") +
+                     geom_text(aes(label = totals, vjust = -.2, hjust = "center"),
+                               position = position_dodge(0.90), angle = -90)+
+                     theme(axis.text.x = element_blank()) +
+                     theme(axis.ticks.x = element_blank()) +
+                     theme(text = element_text(size=15)) +
+                     xlab("") +
+                     ylab("") +
+                     theme(legend.position  = "none")+
+                     coord_flip()
+    })
+    
+    # plot ethnicity distribution
+    output$barOne <- renderPlot({
+                     validate(
+                       need(nrow(zipOne())>0, "No data available for selected zip code")
+                     )
+                     zipOne()%>%
+                     ggplot(aes(fct_reorder(Race, percent), percent)) +
+                     geom_bar(stat = "identity", fill = "#CCEBC5", alpha = 0.6) +
+                     theme(panel.background = element_blank()) +
+                     theme(axis.line.y = element_line(colour = "black")) +
+                     geom_text(aes(label = paste0(percent,"%"), vjust = -.2, hjust = "center"),
+                     position = position_dodge(0.90), angle = -90)+
+                     theme(axis.text.x = element_blank()) +
+                     theme(axis.ticks.x = element_blank()) +
+                     theme(text = element_text(size=15)) +
+                     xlab("") +
+                     ylab("") +
+                     coord_flip() 
+    })
+    
+    # create donut chart
+    output$donut <- renderPlot({
+                      validate(
+                      need(nrow(zipThree())>0, "No data available for selected zip code")
+                      )
+                      zipThree()%>%ggplot(aes(ymax=ymax, ymin=ymin, xmax=10, xmin=2, fill=FamNonFam)) +
+                      geom_rect() +
+                      geom_label(x=5, aes(y=labelPositions,
+                                          label=label), size=5, color = "white") +
+                      scale_fill_brewer(palette = "Pastel1") +
+                      coord_polar(theta = "y") +
+                      xlim(c(-10, 10)) +
+                      theme_void()+
+                      theme(legend.position = "none")
+     })
+
   #######################################################################
   
   ## Dana
