@@ -1272,10 +1272,6 @@ server <- function(input, output) {
       selectPage(which(input$abandoned_summary_rows_all == clickId) %/% input$abandoned_summary_state$length + 1)
   })
   
-  
-  
-  
-  
 } # end server
 
 # Run the application 
