@@ -766,7 +766,7 @@ server <- function(input, output) {
   
   # Output map or warning
   output$map_or_warning <- renderUI({
-    if (input$zipcode %in% business_zip() | input$zipcode %in% abandoned_zip()) {
+    if ((input$zipcode %in% business_spatial$Zip_Code) | (input$zipcode %in% abandoned_spatial$Zip_Code)) {
       leafletOutput("bus_map")
     }
     else{
