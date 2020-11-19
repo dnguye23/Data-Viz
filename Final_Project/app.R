@@ -261,7 +261,7 @@ pop_age_tidy$age_range <- factor(pop_age_tidy$age_range, levels = age_level)
 # Ankur Added for summary table ###
 # subset data
 
-business_sub <- business_points %>%
+business_sub <- business_spatial %>%
   select(c(1:11))
 
 abandoned_sub <- abandoned_spatial
@@ -280,7 +280,7 @@ business_sub <- mutate(business_sub,
                          ifelse(
                            grepl("rest|food", business_points$Classifi_1, ignore.case=TRUE ), "RESTAURANT",
                            ifelse(
-                             grepl("park", business_points$Classifi_1, ignore.case=TRUE ), "PARKING",
+                             grepl("park|lawn", business_points$Classifi_1, ignore.case=TRUE ), "PARKING",
                              ifelse(
                                grepl("massage|tat", business_points$Classifi_1, ignore.case=TRUE ), "MASSAGE", 
                                ifelse(
@@ -321,14 +321,6 @@ business_sub <- mutate(business_sub,
 business_sub$id <- seq.int(nrow(business_sub))
 
 abandoned_sub$id <- seq.int(nrow(abandoned_sub))
-
-sort(unique(c(unique(park_data$Zip_Code), 
-              unique(business_spatial$Zip_Code), 
-              unique(abandoned_spatial$Zip_Code),
-              unique(school_data$Zip_Code),
-              unique(popAggregate$Zip_Code),
-              unique(householdsAggregate$Zip_Code),
-              unique(householdsFamily$Zip_Code)))) 
 
 ############################################################################
 
@@ -440,16 +432,33 @@ body <- dashboardBody(
               box(width = 2, 
                   radioButtons(inputId = "bus_type",
                                label = "Choose Business Type",
-                               choices = c("All" = 'all', "Restaurant/Food Services" = "resto", 
-                                           "Parking" = 'parking', "Massage/Tatoo Parlors" = 'massage',
-                                           "Outdoor Venues" = 'outdoor', "Pet" = 'pet', 
-                                           "Non-profit" = 'donation', "Others" = 'other'),
+                               choices = c("All" = 'all', 
+                                           "Restaurant/Food Services" = "resto", 
+                                           "Parking" = 'parking', 
+                                           "Massage/Tatoo Parlors" = 'massage',
+                                           "Outdoor Venues" = 'outdoor', 
+                                           "Pet" = 'pet', 
+                                           "Charity" = 'donation', 
+                                           "Auto Repairs" = "car",
+                                           "Taxi" = "cab",
+                                           "Hotel" = 'hotel',
+                                           "Peddler" = "ped",
+                                           "Transient Merchant" = 'trans',
+                                           "Security Company" = 'alarm',
+                                           "Arborist" = 'aborist',
+                                           "Garbage Removal" = 'trash',
+                                           "Metal Dealers" = 'metal',
+                                           "Towing Company" = 'tow',
+                                           "Laundromat" = 'laundry',
+                                           "Second Hand Dealers" = "second",
+                                           "Adult Business" = 'adult',
+                                           "Others" = 'other'),
                                selected = "all")
               ), # end box
               
               box(
                 title = "Businesses and Abandoned Properties Map", solidHeader = T, width = 10,
-                uiOutput(outputId = "map_or_warning")
+                leafletOutput(outputId = "bus_map")
                 
               )  # end box
               
@@ -758,21 +767,7 @@ server <- function(input, output) {
                        options = layersControlOptions(collapsed = F)) 
     
   }) #end bus_map
-  
-  # Create warning
-  output$bus_warning <- renderText({
-    paste("Data not avaialable for selected Zip Code.")
-  }) # end map warning
-  
-  # Output map or warning
-  output$map_or_warning <- renderUI({
-    if ((input$zipcode %in% business_spatial$Zip_Code) | (input$zipcode %in% abandoned_spatial$Zip_Code)) {
-      leafletOutput("bus_map")
-    }
-    else{
-      textOutput('bus_warning')
-    }
-  })
+
   
   #### BAR GRAPH FOR AGE DISTRIBUTION
   ## Subset age data based on zip code
