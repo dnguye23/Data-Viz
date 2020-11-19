@@ -324,6 +324,10 @@ business_sub$id <- seq.int(nrow(business_sub))
 
 abandoned_sub$id <- seq.int(nrow(abandoned_sub))
 
+business_spatial$classify <- business_sub$classify
+
+test = business_spatial %>% filter(Zip_Code == 46617, str_detect(str_to_lower(classify), ".*other.*"))
+
 ############################################################################
 
 ### Ankur
@@ -695,9 +699,6 @@ server <- function(input, output) {
     business_spatial %>% filter(Zip_Code == input$zipcode)
   })
     
-  business_type <- reactive({
-    business_sub %>% filter(Zip_Code == input$zipcode)
-  })
   
   abandoned_zip <- reactive({
     abandoned_spatial %>% filter(Zip_Code == input$zipcode)
@@ -706,47 +707,47 @@ server <- function(input, output) {
   business_filter <- reactive({
     switch(input$bus_type,
            
-           all = business_type(),
+           all = business_zip(),
            
-           resto = business_type() %>% filter(str_detect(str_to_lower(classify), "resta.*")),
+           resto = business_zip() %>% filter(str_detect(str_to_lower(classify), "resta.*")),
            
-           parking = business_type() %>% filter(str_detect(str_to_lower(classify), ".*park.*")),
+           parking = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*park.*")),
            
-           massage = business_type() %>% filter(str_detect(str_to_lower(classify), ".*massage.*")),
+           massage = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*massage.*")),
            
-           outdoor = business_type() %>% filter(str_detect(str_to_lower(classify), ".*outdoor.*")),
+           outdoor = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*outdoor.*")),
            
-           pet = business_type() %>% filter(str_detect(str_to_lower(classify), ".*pet.*")),
+           pet = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*pet.*")),
            
-           donation = business_type() %>% filter(str_detect(str_to_lower(classify), "charity")),
+           donation = business_zip() %>% filter(str_detect(str_to_lower(classify), "charity")),
            
-           car = business_type() %>% filter(str_detect(str_to_lower(classify), ".*auto.*")),
+           car = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*auto.*")),
            
-           cab = business_type() %>% filter(str_detect(str_to_lower(classify), ".*taxi.*")),
+           cab = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*taxi.*")),
            
-           hotel = business_type() %>% filter(str_detect(str_to_lower(classify), ".*hotel.*")),
+           hotel = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*hotel.*")),
            
-           ped = business_type() %>% filter(str_detect(str_to_lower(classify), ".*peddler.*")),
+           ped = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*peddler.*")),
            
-           trans = business_type() %>% filter(str_detect(str_to_lower(classify), ".*transient.*")),
+           trans = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*transient.*")),
            
-           alarm = business_type() %>% filter(str_detect(str_to_lower(classify), ".*security.*")),
+           alarm = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*security.*")),
            
-           aborist = business_type() %>% filter(str_detect(str_to_lower(classify), ".*arborist.*")),
+           aborist = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*arborist.*")),
            
-           trash = business_type() %>% filter(str_detect(str_to_lower(classify), ".*garbage.*")),
+           trash = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*garbage.*")),
            
-           metal = business_type() %>% filter(str_detect(str_to_lower(classify), ".*metal.*")),
+           metal = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*metal.*")),
            
-           tow = business_type() %>% filter(str_detect(str_to_lower(classify), ".*tow.*")),
+           tow = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*tow.*")),
            
-           laundry = business_type() %>% filter(str_detect(str_to_lower(classify), ".*laundr.*")),
+           laundry = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*laundr.*")),
            
-           second = business_type() %>% filter(str_detect(str_to_lower(classify), ".*second.*")),
+           second = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*second.*")),
            
-           adult = business_type() %>% filter(str_detect(str_to_lower(classify), ".*adult.*")),
+           adult = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*adult.*")),
            
-           other = business_type() %>% filter(str_detect(str_to_lower(classify), ".*other.*"))
+           other = business_zip() %>% filter(str_detect(str_to_lower(classify), ".*other.*"))
     ) #end switch
   })
   
@@ -760,7 +761,7 @@ server <- function(input, output) {
       addProviderTiles(providers$CartoDB.Positron)  %>% 
       
       # Add markers for business
-      addCircleMarkers(data = business_zip(),
+      addCircleMarkers(data = business_filter(),
                        popup = ~popup,
                        stroke = F,
                        fillOpacity = 0.8,
@@ -769,7 +770,7 @@ server <- function(input, output) {
                        group = "Business") %>%
       
       # Add legend for business
-      addLegend(data = business_filter(),#business_zip(),
+      addLegend(data = business_filter(),
                 labels = "Business",
                 colors = '#1975d1',
                 opacity = 1,
