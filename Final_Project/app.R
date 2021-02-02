@@ -15,6 +15,7 @@ library(forcats)
 library(plotly)
 library(RColorBrewer)
 
+#test
 skin <- Sys.getenv("DASHBOARD_SKIN")
 skin <- tolower(skin)
 if (skin == "")
